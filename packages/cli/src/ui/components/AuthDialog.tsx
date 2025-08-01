@@ -11,6 +11,7 @@ import { RadioButtonSelect } from './shared/RadioButtonSelect.js';
 import { LoadedSettings, SettingScope } from '../../config/settings.js';
 import { AuthType } from '@google/gemini-cli-core';
 import { validateAuthMethod } from '../../config/auth.js';
+import { CustomProviderFlow } from './CustomProviderFlow.js';
 
 interface AuthDialogProps {
   onSelect: (authMethod: AuthType | undefined, scope: SettingScope) => void;
@@ -144,21 +145,22 @@ export function AuthDialog({
   // 条件渲染：显示 Custom Provider 配置流程
   if (showCustomProviderFlow) {
     return (
-      <Box
-        borderStyle="round"
-        borderColor={Colors.Gray}
-        flexDirection="column"
-        padding={1}
-        width="100%"
-      >
-        <Text bold>Custom Provider Configuration</Text>
-        <Box marginTop={1}>
-          <Text>Custom Provider configuration will be implemented in Phase 3.</Text>
-        </Box>
-        <Box marginTop={1}>
-          <Text color={Colors.Gray}>Press Esc to return to authentication selection</Text>
-        </Box>
-      </Box>
+      <CustomProviderFlow
+        settings={settings}
+        onComplete={(providerConfig) => {
+          // 配置完成后直接设置认证类型并关闭对话框
+          settings.setValue(SettingScope.User, 'selectedAuthType', AuthType.CUSTOM_PROVIDER);
+          settings.setValue(SettingScope.User, 'currentProvider', providerConfig.id);
+          settings.setValue(SettingScope.User, 'currentModel', providerConfig.models[0]);
+          settings.setValue(SettingScope.User, 'customProviders', {
+            ...settings.merged.customProviders,
+            [providerConfig.id]: providerConfig
+          });
+          onSelect(AuthType.CUSTOM_PROVIDER, SettingScope.User);
+          setShowCustomProviderFlow(false);
+        }}
+        onCancel={() => setShowCustomProviderFlow(false)}
+      />
     );
   }
 
