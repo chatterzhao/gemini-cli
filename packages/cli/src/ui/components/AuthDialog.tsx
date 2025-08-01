@@ -35,6 +35,7 @@ export function AuthDialog({
   settings,
   initialErrorMessage,
 }: AuthDialogProps): React.JSX.Element {
+  const [showCustomProviderFlow, setShowCustomProviderFlow] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(() => {
     if (initialErrorMessage) {
       return initialErrorMessage;
@@ -77,6 +78,7 @@ export function AuthDialog({
       value: AuthType.USE_GEMINI,
     },
     { label: 'Vertex AI', value: AuthType.USE_VERTEX_AI },
+    { label: 'Custom Provider', value: AuthType.CUSTOM_PROVIDER },
   ];
 
   const initialAuthIndex = items.findIndex((item) => {
@@ -99,6 +101,13 @@ export function AuthDialog({
   });
 
   const handleAuthSelect = (authMethod: AuthType) => {
+    // 特殊处理 Custom Provider - 不走验证，直接显示配置流程
+    if (authMethod === AuthType.CUSTOM_PROVIDER) {
+      setShowCustomProviderFlow(true);
+      return;
+    }
+    
+    // 原有逻辑：其他认证方式的验证
     const error = validateAuthMethod(authMethod);
     if (error) {
       setErrorMessage(error);
@@ -110,6 +119,12 @@ export function AuthDialog({
 
   useInput((_input, key) => {
     if (key.escape) {
+      // 如果在 Custom Provider 流程中，返回认证选择界面
+      if (showCustomProviderFlow) {
+        setShowCustomProviderFlow(false);
+        return;
+      }
+      
       // Prevent exit if there is an error message.
       // This means they user is not authenticated yet.
       if (errorMessage) {
@@ -125,6 +140,27 @@ export function AuthDialog({
       onSelect(undefined, SettingScope.User);
     }
   });
+
+  // 条件渲染：显示 Custom Provider 配置流程
+  if (showCustomProviderFlow) {
+    return (
+      <Box
+        borderStyle="round"
+        borderColor={Colors.Gray}
+        flexDirection="column"
+        padding={1}
+        width="100%"
+      >
+        <Text bold>Custom Provider Configuration</Text>
+        <Box marginTop={1}>
+          <Text>Custom Provider configuration will be implemented in Phase 3.</Text>
+        </Box>
+        <Box marginTop={1}>
+          <Text color={Colors.Gray}>Press Esc to return to authentication selection</Text>
+        </Box>
+      </Box>
+    );
+  }
 
   return (
     <Box
