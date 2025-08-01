@@ -56,6 +56,17 @@ export interface AccessibilitySettings {
   disableLoadingPhrases?: boolean;
 }
 
+export interface CustomProviderConfig {
+  id: string;                  // 唯一标识
+  name: string;               // 显示名称  
+  adapterType: 'openai' | 'anthropic';
+  baseUrl: string;
+  apiKey: string;
+  models: string[];           // 可用模型列表
+  createdAt?: string;         // 创建时间
+  updatedAt?: string;         // 更新时间
+}
+
 export interface Settings {
   theme?: string;
   customThemes?: Record<string, CustomTheme>;
@@ -109,6 +120,11 @@ export interface Settings {
   disableAutoUpdate?: boolean;
 
   memoryDiscoveryMaxDirs?: number;
+
+  // Custom Provider 相关配置
+  currentProvider?: string;    // 当前使用的 provider ID  
+  currentModel?: string;       // 当前使用的 model
+  customProviders?: Record<string, CustomProviderConfig>;
 }
 
 export interface SettingsError {

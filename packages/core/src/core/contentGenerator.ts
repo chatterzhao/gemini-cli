@@ -43,6 +43,7 @@ export enum AuthType {
   USE_GEMINI = 'gemini-api-key',
   USE_VERTEX_AI = 'vertex-ai',
   CLOUD_SHELL = 'cloud-shell',
+  CUSTOM_PROVIDER = 'custom-provider',
 }
 
 export type ContentGeneratorConfig = {
@@ -115,6 +116,12 @@ export async function createContentGenerator(
       'User-Agent': `GeminiCLI/${version} (${process.platform}; ${process.arch})`,
     },
   };
+
+  // Custom Provider 处理
+  if (config.authType === AuthType.CUSTOM_PROVIDER) {
+    return createCustomProviderContentGenerator(config, gcConfig, sessionId);
+  }
+
   if (
     config.authType === AuthType.LOGIN_WITH_GOOGLE ||
     config.authType === AuthType.CLOUD_SHELL
@@ -142,5 +149,16 @@ export async function createContentGenerator(
 
   throw new Error(
     `Error creating contentGenerator: Unsupported authType: ${config.authType}`,
+  );
+}
+
+async function createCustomProviderContentGenerator(
+  config: ContentGeneratorConfig,
+  gcConfig: Config,
+  sessionId?: string
+): Promise<ContentGenerator> {
+  // Phase 1: 占位符实现，将在 Phase 4 完成具体适配器
+  throw new Error(
+    `Custom provider support is not yet implemented. This will be added in Phase 4.`
   );
 }

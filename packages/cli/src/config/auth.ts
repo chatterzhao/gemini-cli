@@ -5,10 +5,25 @@
  */
 
 import { AuthType } from '@google/gemini-cli-core';
-import { loadEnvironment } from './settings.js';
+import { loadEnvironment, loadSettings } from './settings.js';
 
 export const validateAuthMethod = (authMethod: string): string | null => {
   loadEnvironment();
+  
+  // Custom Provider 绕过 Google 认证验证
+  if (authMethod === AuthType.CUSTOM_PROVIDER) {
+    // 检查是否有有效的自定义供应商配置
+    const settings = loadSettings(process.cwd());
+    const currentProvider = settings.merged.currentProvider;
+    const customProviders = settings.merged.customProviders;
+    
+    if (!currentProvider || !customProviders?.[currentProvider]) {
+      return 'No custom provider configured. Please configure a custom provider first.';
+    }
+    
+    return null; // 验证通过，不需要 Google 登录
+  }
+  
   if (
     authMethod === AuthType.LOGIN_WITH_GOOGLE ||
     authMethod === AuthType.CLOUD_SHELL
