@@ -1,0 +1,185 @@
+{
+  "adapterType": "openai",
+  "adapterName": "OpenAI Compatible",
+  "description": "Compatible with OpenAI API format (OpenAI, DeepSeek, Qwen)",
+  "version": "1.0.0",
+  "author": "Gemini CLI Team",
+  "apiFormat": {
+    "requestFormat": "openai",
+    "responseFormat": "openai",
+    "streamingFormat": "sse"
+  },
+  "endpoints": {
+    "chat": "/chat/completions",
+    "embedding": "/embeddings",
+    "models": "/models"
+  },
+  "parameterMapping": {
+    "temperature": "temperature",
+    "topP": "top_p",
+    "maxOutputTokens": "max_tokens",
+    "stopSequences": "stop",
+    "presencePenalty": "presence_penalty",
+    "frequencyPenalty": "frequency_penalty"
+  },
+  "responseMapping": {
+    "content": "choices[0].message.content",
+    "finishReason": "choices[0].finish_reason",
+    "usage": {
+      "promptTokens": "usage.prompt_tokens",
+      "completionTokens": "usage.completion_tokens",
+      "totalTokens": "usage.total_tokens"
+    },
+    "streamContent": "choices[0].delta.content",
+    "streamFinishReason": "choices[0].finish_reason"
+  },
+  "tokenCounting": {
+    "method": "response_usage",
+    "fallbackEstimation": {
+      "baseRatio": 0.75,
+      "chineseWeight": 0.5,
+      "codeWeight": 0.2,
+      "specialCharWeight": 0.3
+    }
+  },
+  "errorHandling": {
+    "rateLimitStatus": 429,
+    "authErrorStatus": 401,
+    "quotaErrorStatus": 429,
+    "errorMessagePath": "error.message"
+  },
+  "defaultModels": {
+    "gpt-4o": {
+      "displayName": "GPT-4o",
+      "contextWindow": 128000,
+      "maxOutputTokens": 16384,
+      "supportedModalities": ["text", "image"],
+      "features": {
+        "streaming": true,
+        "functionCalling": true,
+        "vision": true
+      }
+    },
+    "gpt-4o-mini": {
+      "displayName": "GPT-4o Mini",
+      "contextWindow": 128000,
+      "maxOutputTokens": 16384,
+      "supportedModalities": ["text", "image"],
+      "features": {
+        "streaming": true,
+        "functionCalling": true,
+        "vision": true
+      }
+    },
+    "gpt-4-turbo": {
+      "displayName": "GPT-4 Turbo",
+      "contextWindow": 128000,
+      "maxOutputTokens": 4096,
+      "supportedModalities": ["text", "image"],
+      "features": {
+        "streaming": true,
+        "functionCalling": true,
+        "vision": true
+      }
+    },
+    "gpt-4": {
+      "displayName": "GPT-4",
+      "contextWindow": 8192,
+      "maxOutputTokens": 8192,
+      "supportedModalities": ["text"],
+      "features": {
+        "streaming": true,
+        "functionCalling": true,
+        "vision": false
+      }
+    },
+    "gpt-3.5-turbo": {
+      "displayName": "GPT-3.5 Turbo",
+      "contextWindow": 16385,
+      "maxOutputTokens": 4096,
+      "supportedModalities": ["text"],
+      "features": {
+        "streaming": true,
+        "functionCalling": true,
+        "vision": false
+      }
+    },
+    "deepseek-chat": {
+      "displayName": "DeepSeek Chat",
+      "contextWindow": 32768,
+      "maxOutputTokens": 4096,
+      "supportedModalities": ["text"],
+      "features": {
+        "streaming": true,
+        "functionCalling": true,
+        "vision": false
+      }
+    },
+    "deepseek-coder": {
+      "displayName": "DeepSeek Coder",
+      "contextWindow": 16384,
+      "maxOutputTokens": 4096,
+      "supportedModalities": ["text"],
+      "features": {
+        "streaming": true,
+        "functionCalling": true,
+        "vision": false
+      }
+    },
+    "deepseek-reasoner": {
+      "displayName": "DeepSeek Reasoner",
+      "contextWindow": 32768,
+      "maxOutputTokens": 4096,
+      "supportedModalities": ["text"],
+      "features": {
+        "streaming": true,
+        "functionCalling": true,
+        "vision": false
+      }
+    },
+    "qwen-max": {
+      "displayName": "Qwen Max",
+      "contextWindow": 30000,
+      "maxOutputTokens": 8000,
+      "supportedModalities": ["text", "image"],
+      "features": {
+        "streaming": true,
+        "functionCalling": true,
+        "vision": true
+      }
+    },
+    "qwen-plus": {
+      "displayName": "Qwen Plus",
+      "contextWindow": 30000,
+      "maxOutputTokens": 8000,
+      "supportedModalities": ["text"],
+      "features": {
+        "streaming": true,
+        "functionCalling": true,
+        "vision": false
+      }
+    },
+    "qwen-turbo": {
+      "displayName": "Qwen Turbo",
+      "contextWindow": 8000,
+      "maxOutputTokens": 8000,
+      "supportedModalities": ["text"],
+      "features": {
+        "streaming": true,
+        "functionCalling": true,
+        "vision": false
+      }
+    },
+    "qwen-long": {
+      "displayName": "Qwen Long",
+      "contextWindow": 1000000,
+      "maxOutputTokens": 8000,
+      "supportedModalities": ["text"],
+      "features": {
+        "streaming": true,
+        "functionCalling": false,
+        "vision": false
+      }
+    }
+  }
+}

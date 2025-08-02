@@ -1,0 +1,98 @@
+{
+  "adapterType": "anthropic",
+  "adapterName": "Anthropic Claude",
+  "description": "Anthropic Claude API format",
+  "version": "1.0.0",
+  "author": "Gemini CLI Team",
+  
+  "apiFormat": {
+    "requestFormat": "anthropic",
+    "responseFormat": "anthropic",
+    "streamingFormat": "sse"
+  },
+  
+  "endpoints": {
+    "chat": "/messages",
+    "models": "/models"
+  },
+  
+  "parameterMapping": {
+    "temperature": "temperature",
+    "topP": "top_p",
+    "topK": "top_k", 
+    "maxOutputTokens": "max_tokens",
+    "stopSequences": "stop_sequences"
+  },
+  
+  "responseMapping": {
+    "content": "content[0].text",
+    "finishReason": "stop_reason",
+    "usage": {
+      "promptTokens": "usage.input_tokens",
+      "completionTokens": "usage.output_tokens",
+      "totalTokens": "usage.input_tokens + usage.output_tokens"
+    },
+    "streamContent": "delta.text",
+    "streamFinishReason": "stop_reason"
+  },
+  
+  "tokenCounting": {
+    "method": "response_usage",
+    "fallbackEstimation": {
+      "baseRatio": 0.8,
+      "chineseWeight": 0.4,
+      "codeWeight": 0.15,
+      "specialCharWeight": 0.25
+    }
+  },
+  
+  "errorHandling": {
+    "rateLimitStatus": 429,
+    "authErrorStatus": 401,
+    "quotaErrorStatus": 429,
+    "errorMessagePath": "error.message"
+  },
+  
+  "requestHeaders": {
+    "required": {
+      "anthropic-version": "2023-06-01",
+      "x-api-key": "{apiKey}"
+    }
+  },
+  
+  "defaultModels": {
+    "claude-3-opus": {
+      "displayName": "Claude 3 Opus",
+      "contextWindow": 200000,
+      "maxOutputTokens": 4096,
+      "supportedModalities": ["text", "image"],
+      "features": {
+        "streaming": true,
+        "functionCalling": true,
+        "vision": true
+      }
+    },
+    "claude-3-sonnet": {
+      "displayName": "Claude 3 Sonnet",
+      "contextWindow": 200000,
+      "maxOutputTokens": 4096,
+      "supportedModalities": ["text", "image"],
+      "features": {
+        "streaming": true,
+        "functionCalling": true,
+        "vision": true
+      }
+    },
+    "claude-3-haiku": {
+      "displayName": "Claude 3 Haiku",
+      "contextWindow": 200000,
+      "maxOutputTokens": 4096,
+      "supportedModalities": ["text", "image"],
+      "features": {
+        "streaming": true,
+        "functionCalling": false,
+        "vision": true
+      }
+    }
+  }
+}

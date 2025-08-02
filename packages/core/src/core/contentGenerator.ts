@@ -19,6 +19,9 @@ import { Config } from '../config/config.js';
 import { getEffectiveModel } from './modelCheck.js';
 import { UserTierId } from '../code_assist/types.js';
 
+// 添加适配器管理器导入
+import { loadAdapter, type AdapterType } from '../providers/index.js';
+
 /**
  * Interface abstracting the core functionalities for generating content and counting tokens.
  */
@@ -46,17 +49,29 @@ export enum AuthType {
   CUSTOM_PROVIDER = 'custom-provider',
 }
 
+export interface CustomProviderConfig {
+  name: string;
+  displayName: string;
+  adapterType: 'openai-compatible' | 'anthropic' | 'custom';
+  baseUrl: string;
+  apiKey: string;
+  models: string[];
+}
+
 export type ContentGeneratorConfig = {
   model: string;
   apiKey?: string;
   vertexai?: boolean;
   authType?: AuthType | undefined;
   proxy?: string | undefined;
+  customProviderConfig?: CustomProviderConfig;
+  provider?: string;
 };
 
 export function createContentGeneratorConfig(
   config: Config,
   authType: AuthType | undefined,
+  customProviderSettings?: { currentProvider?: string; customProviders?: Record<string, CustomProviderConfig> }
 ): ContentGeneratorConfig {
   const geminiApiKey = process.env.GEMINI_API_KEY || undefined;
   const googleApiKey = process.env.GOOGLE_API_KEY || undefined;
@@ -100,6 +115,21 @@ export function createContentGeneratorConfig(
     contentGeneratorConfig.vertexai = true;
 
     return contentGeneratorConfig;
+  }
+
+  // Handle custom provider
+  if (authType === AuthType.CUSTOM_PROVIDER && customProviderSettings?.currentProvider && customProviderSettings?.customProviders) {
+    const currentProviderId = customProviderSettings.currentProvider;
+    const customProviders = customProviderSettings.customProviders;
+    const providerConfig = customProviders[currentProviderId];
+    
+    if (providerConfig) {
+      contentGeneratorConfig.customProviderConfig = providerConfig;
+      // Use the model from the custom provider if available, otherwise keep the default
+      if (providerConfig.models && providerConfig.models.length > 0) {
+        contentGeneratorConfig.model = providerConfig.models[0];
+      }
+    }
   }
 
   return contentGeneratorConfig;
@@ -157,8 +187,23 @@ async function createCustomProviderContentGenerator(
   gcConfig: Config,
   sessionId?: string
 ): Promise<ContentGenerator> {
-  // Phase 1: 占位符实现，将在 Phase 4 完成具体适配器
-  throw new Error(
-    `Custom provider support is not yet implemented. This will be added in Phase 4.`
+  // 获取自定义提供商配置
+  const providerConfig = config.customProviderConfig;
+  
+  if (!providerConfig) {
+    throw new Error(`Custom provider configuration is missing`);
+  }
+
+  // 使用适配器系统创建内容生成器
+  return loadAdapter(
+    providerConfig.adapterType as AdapterType,
+    {
+      id: providerConfig.name,
+      name: providerConfig.displayName,
+      adapterType: providerConfig.adapterType,
+      baseUrl: providerConfig.baseUrl,
+      apiKey: providerConfig.apiKey,
+      models: providerConfig.models,
+    }
   );
 }

@@ -10,6 +10,7 @@ import {
   AuthType,
   ContentGeneratorConfig,
   createContentGeneratorConfig,
+  CustomProviderConfig
 } from '../core/contentGenerator.js';
 import { PromptRegistry } from '../prompts/prompt-registry.js';
 import { ToolRegistry } from '../tools/tool-registry.js';
@@ -40,6 +41,7 @@ import {
   StartSessionEvent,
 } from '../telemetry/index.js';
 import {
+  DEFAULT_GEMINI_MODEL,
   DEFAULT_GEMINI_EMBEDDING_MODEL,
   DEFAULT_GEMINI_FLASH_MODEL,
 } from './models.js';
@@ -331,10 +333,11 @@ export class Config {
     this.toolRegistry = await this.createToolRegistry();
   }
 
-  async refreshAuth(authMethod: AuthType) {
+  async refreshAuth(authMethod: AuthType, customProviderSettings?: { currentProvider?: string; customProviders?: Record<string, CustomProviderConfig> }) {
     this.contentGeneratorConfig = createContentGeneratorConfig(
       this,
       authMethod,
+      customProviderSettings,
     );
 
     this.geminiClient = new GeminiClient(this);
@@ -688,4 +691,4 @@ export class Config {
   }
 }
 // Export model constants for use in CLI
-export { DEFAULT_GEMINI_FLASH_MODEL };
+export { DEFAULT_GEMINI_MODEL, DEFAULT_GEMINI_FLASH_MODEL, DEFAULT_GEMINI_EMBEDDING_MODEL };
