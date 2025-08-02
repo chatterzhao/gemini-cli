@@ -65,7 +65,14 @@ export class OpenAIAdapter extends BaseAdapter {
   ): Promise<GenerateContentResponse> {
     const startTime = Date.now();
     try {
-      const apiRequest = this.buildApiRequest(request);
+      // 处理responseMimeType和responseSchema参数
+      let modifiedRequest = request;
+      if (request.config?.responseMimeType === 'application/json') {
+        // 对于需要JSON响应的请求，修改提示词以确保返回JSON格式
+        modifiedRequest = this.modifyRequestForJsonResponse(request);
+      }
+      
+      const apiRequest = this.buildApiRequest(modifiedRequest);
       
       const response = await fetch(this.getEndpointUrl('chat'), {
         method: 'POST',
@@ -108,6 +115,44 @@ export class OpenAIAdapter extends BaseAdapter {
     }
   }
 
+  /**
+   * 修改请求以确保返回JSON格式的响应
+   */
+  private modifyRequestForJsonResponse(request: GenerateContentParameters): GenerateContentParameters {
+    // 创建请求的副本
+    const modifiedRequest: any = JSON.parse(JSON.stringify(request));
+    
+    // 在最后一条用户消息中添加JSON格式的说明
+    if (modifiedRequest.contents && modifiedRequest.contents.length > 0) {
+      const lastContentIndex = modifiedRequest.contents.length - 1;
+      const lastContent = modifiedRequest.contents[lastContentIndex];
+      
+      if (lastContent.role === 'user' && lastContent.parts && lastContent.parts.length > 0) {
+        // 添加JSON格式说明到用户消息的末尾
+        const jsonInstruction = "\n\n请以严格的JSON格式返回结果，不要包含其他文本或解释。" +
+          "确保输出是有效的JSON，可以被JSON.parse()解析。";
+        
+        // 合并到最后一部分文本中
+        const lastPart = lastContent.parts[lastContent.parts.length - 1];
+        if (lastPart.text) {
+          lastPart.text += jsonInstruction;
+        } else {
+          lastContent.parts.push({ text: jsonInstruction });
+        }
+      }
+    }
+    
+    // 添加response_format参数以启用JSON模式
+    if (!modifiedRequest.config) {
+      modifiedRequest.config = {};
+    }
+    
+    // 设置response_format为json_object以启用DeepSeek的JSON模式
+    modifiedRequest.config.response_format = { type: 'json_object' };
+    
+    return modifiedRequest;
+  }
+
   async generateContentStream(
     request: GenerateContentParameters,
   ): Promise<AsyncGenerator<GenerateContentResponse>> {
@@ -132,49 +177,43 @@ export class OpenAIAdapter extends BaseAdapter {
       return this.parseStreamResponse(response);
     } catch (error) {
       const durationMs = Date.now() - startTime;
-
+      
       // 识别超时错误
       const isTimeoutError = this.isTimeoutError(error);
       const errorMessage = isTimeoutError
-        ? `Streaming setup timeout after ${Math.round(durationMs / 1000)}s. Try reducing input length or increasing timeout in config.`
+        ? `Stream timeout after ${Math.round(durationMs / 1000)}s. Try reducing input length or increasing timeout in config.`
         : error instanceof Error
           ? error.message
           : String(error);
 
-      console.error('OpenAI API Streaming Error:', errorMessage);
+      console.error('OpenAI API Stream Error:', errorMessage);
 
-      // 提供有针对性的流式处理超时错误消息
+      // 提供有针对性的超时错误消息
       if (isTimeoutError) {
         throw new Error(
-          `${errorMessage}\n\nStreaming setup timeout troubleshooting:\n` +
+          `${errorMessage}\n\nTroubleshooting tips:\n` +
             `- Reduce input length or complexity\n` +
             `- Increase timeout in config: timeout\n` +
-            `- Check network connectivity and firewall settings\n` +
-            `- Consider using non-streaming mode for very long inputs`,
+            `- Check network connectivity`,
         );
       }
 
-      throw new Error(`OpenAI API error: ${errorMessage}`);
+      throw new Error(`OpenAI API stream error: ${errorMessage}`);
     }
   }
 
   async countTokens(
     request: CountTokensParameters,
   ): Promise<CountTokensResponse> {
-    // 如果配置为使用响应中的token数，我们需要发送一个实际请求
+    // 如果配置了使用响应中的token计数，则尝试调用API获取准确计数
     if (this.adapterConfig.tokenCounting.method === 'response_usage') {
       try {
-        // 发送一个最小的请求来获取准确的token计数
-        const minimalRequest = this.buildApiRequest({
-          model: request.model,
-          contents: request.contents,
-          // 注意：这里使用any类型绕过类型检查，因为GenerateContentParameters接口中没有generationConfig字段
-        } as any);
-        
+        // 构建一个最小的请求，只用于token计数
+        const apiRequest = this.buildApiRequest(request);
         const response = await fetch(this.getEndpointUrl('chat'), {
           method: 'POST',
           headers: this.getRequestHeaders(),
-          body: JSON.stringify(minimalRequest),
+          body: JSON.stringify(apiRequest),
           signal: AbortSignal.timeout(this.getConfigValue('timeout', 30000)),
         });
 
@@ -279,6 +318,11 @@ export class OpenAIAdapter extends BaseAdapter {
       }
     }
 
+    // 添加response_format参数（如果存在）
+    if (request.config && (request.config as any).response_format) {
+      mappedParams.response_format = (request.config as any).response_format;
+    }
+
     return {
       model: request.model,
       messages,
@@ -345,30 +389,69 @@ export class OpenAIAdapter extends BaseAdapter {
   }
 
   /**
-   * 转换为Gemini响应格式
+   * 转换API响应为Gemini格式
    */
   private convertToGeminiResponse(response: any): GenerateContentResponse {
-    const choice = response.choices[0];
+    // 处理错误响应
+    if (response.error) {
+      throw new Error(`API error: ${response.error.message}`);
+    }
+
+    const candidates: Candidate[] = [];
     
-    const candidate: Candidate = {
-      content: {
-        parts: [{ text: choice.message.content }],
-        role: 'model',
-      },
-      finishReason: this.convertFinishReason(choice.finish_reason),
-      index: choice.index,
+    // 处理选择项
+    if (response.choices && response.choices.length > 0) {
+      for (const choice of response.choices) {
+        const candidate: Candidate = {
+          index: choice.index || 0,
+          content: {
+            role: 'model',
+            parts: [
+              {
+                text: choice.message?.content || choice.delta?.content || '',
+              },
+            ],
+          },
+          finishReason: this.convertFinishReason(choice.finish_reason),
+        };
+        
+        candidates.push(candidate);
+      }
+    }
+
+    // 创建一个基础的GenerateContentResponse对象
+    const baseResponse: any = {
+      candidates,
     };
 
-    const usage = this.extractTokenUsage(response);
+    // 如果有使用情况数据，添加到响应中
+    if (response.usage) {
+      baseResponse.usageMetadata = {
+        promptTokenCount: response.usage.prompt_tokens,
+        candidatesTokenCount: response.usage.completion_tokens,
+        totalTokenCount: response.usage.total_tokens,
+      };
+    }
 
-    return {
-      candidates: [candidate],
-      usageMetadata: usage ? {
-        promptTokenCount: usage.promptTokens,
-        candidatesTokenCount: usage.completionTokens,
-        totalTokenCount: usage.totalTokens,
-      } : undefined,
-    } as GenerateContentResponse;
+    return baseResponse as GenerateContentResponse;
+  }
+
+  /**
+   * 转换完成原因
+   */
+  private convertFinishReason(finishReason: string): FinishReason {
+    switch (finishReason) {
+      case 'stop':
+        return FinishReason.STOP;
+      case 'length':
+        return FinishReason.MAX_TOKENS;
+      case 'content_filter':
+        return FinishReason.SAFETY;
+      case 'tool_calls':
+        return FinishReason.STOP;
+      default:
+        return FinishReason.OTHER;
+    }
   }
 
   /**
@@ -426,14 +509,16 @@ export class OpenAIAdapter extends BaseAdapter {
   }
 
   /**
-   * 转换结束原因
+   * 从API响应中提取token使用情况
    */
-  private convertFinishReason(reason: string): FinishReason {
-    switch (reason) {
-      case 'stop': return FinishReason.STOP;
-      case 'length': return FinishReason.MAX_TOKENS;
-      case 'content_filter': return FinishReason.SAFETY;
-      default: return FinishReason.OTHER;
+  protected extractTokenUsage(response: any): { promptTokens: number; completionTokens: number; totalTokens: number } | null {
+    if (response.usage) {
+      return {
+        promptTokens: response.usage.prompt_tokens || 0,
+        completionTokens: response.usage.completion_tokens || 0,
+        totalTokens: response.usage.total_tokens || 0,
+      };
     }
+    return null;
   }
 }

@@ -166,14 +166,23 @@ export abstract class BaseAdapter implements ContentGenerator {
    * 获取配置值，优先使用用户配置
    */
   protected getConfigValue<T>(key: string, defaultValue: T): T {
+    // 优先从providerOverrides获取
     if (this.userConfig.providerOverrides && key in this.userConfig.providerOverrides) {
-      return (this.userConfig.providerOverrides as any)[key] as T;
+      const value = (this.userConfig.providerOverrides as any)[key];
+      if (value !== undefined && value !== null) {
+        return value as T;
+      }
     }
     
+    // 其次从userConfig本身获取
     if (key in this.userConfig) {
-      return (this.userConfig as any)[key] as T;
+      const value = (this.userConfig as any)[key];
+      if (value !== undefined && value !== null) {
+        return value as T;
+      }
     }
     
+    // 最后返回默认值
     return defaultValue;
   }
 
@@ -200,7 +209,22 @@ export abstract class BaseAdapter implements ContentGenerator {
     // 添加适配器要求的头部
     if (this.adapterConfig.requestHeaders?.required) {
       for (const [key, value] of Object.entries(this.adapterConfig.requestHeaders.required)) {
-        headers[key] = value.replace('{apiKey}', this.userConfig.apiKey);
+        // 处理API密钥替换
+        let resolvedApiKey = this.userConfig.apiKey;
+        
+        // 如果API密钥以$开头，尝试从环境变量获取
+        if (resolvedApiKey && resolvedApiKey.startsWith('$')) {
+          const envVarName = resolvedApiKey.substring(1);
+          const envValue = process.env[envVarName];
+          if (envValue) {
+            resolvedApiKey = envValue;
+          } else {
+            console.error(`Warning: Environment variable '${envVarName}' not found for API key`);
+          }
+        }
+        
+        // 替换模板值并设置头部
+        headers[key] = value.replace('{apiKey}', resolvedApiKey || '');
       }
     }
     
@@ -296,8 +320,13 @@ export abstract class BaseAdapter implements ContentGenerator {
           !Array.isArray(targetValue)
         ) {
           result[key] = this.deepMerge(targetValue, sourceValue);
-        } else {
-          // 否则直接覆盖（包括数组、基本类型、null、undefined）
+        } 
+        // 如果是数组，直接覆盖
+        else if (Array.isArray(sourceValue)) {
+          result[key] = [...sourceValue];
+        }
+        // 否则直接覆盖（包括基本类型、null、undefined）
+        else {
           result[key] = sourceValue;
         }
       }

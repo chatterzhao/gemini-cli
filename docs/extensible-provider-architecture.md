@@ -933,277 +933,73 @@ async function getAvailableModels(settings: LoadedSettings) {
 9. **packages/cli/src/ui/commands/modelCommand.ts** (新建)
 10. **相关测试文件** (新建)
 
-### Phase 1: 核心认证流程修改 (PR1)
+### Phase 1: 核心认证流程修改 ✅ **已完成**
 **目标**：最小侵入式地添加 Custom Provider 支持
-**文件影响分析**：
-- ✅ `packages/core/src/core/contentGenerator.ts` - **修改** (添加枚举)
-- ✅ `packages/cli/src/config/auth.ts` - **修改** (函数增强)
-- ✅ `packages/cli/src/config/settings.ts` - **扩展** (接口增强)
+**关键修改**：
+- AuthType 枚举添加 `CUSTOM_PROVIDER = 'custom-provider'`
+- validateAuthMethod 函数支持 Custom Provider 绕过 Google 认证
+- Settings 接口扩展支持 customProviders 配置
 
-**侵入性评级**：🟢 **极低** - 仅添加配置选项，不改变现有行为
-
-### Phase 2: AuthDialog 组件修改 (PR2)
+### Phase 2: AuthDialog 组件修改 ✅ **已完成**
 **目标**：扩展认证对话框支持 Custom Provider 选项
-**文件影响分析**：
-- ⚠️ `packages/cli/src/ui/components/AuthDialog.tsx` - **修改** (核心UI逻辑)
+**关键修改**：
+- AuthDialog 添加 Custom Provider 选项
+- handleAuthSelect 函数特殊处理 Custom Provider 分支
+- 条件渲染显示 CustomProviderFlow 配置流程
 
-**侵入性评级**：🟡 **中等** - 修改核心UI组件，但设计为条件分支
-
-### Phase 3: Custom Provider 配置组件 (PR3)
+### Phase 3: Custom Provider 配置组件 ✅ **已完成**
 **目标**：实现完整的分步配置流程
-**文件影响分析**：
-- 🆕 `packages/cli/src/ui/components/CustomProviderFlow.tsx` - **新建**
-- 🆕 `packages/cli/src/ui/components/ProviderSelectionDialog.tsx` - **新建**
-- 🆕 `packages/cli/src/ui/components/ProviderConfigSteps.tsx` - **新建**
+**核心组件**：
+- **CustomProviderFlow** - 主流程控制器，管理配置步骤
+- **ProviderSelectionDialog** - 选择现有 Provider 或新建
+- **ProviderConfigSteps** - 分步配置：适配器→名称→BaseURL→API Key→模型
+- **ConfigFieldInput** - 通用配置输入组件，参考 qwen-code 设计
 
-**侵入性评级**：🔵 **零侵入** - 全新独立组件
-
-### Phase 4: OpenAI 适配器实现 (PR4)
+### Phase 4: OpenAI 适配器实现 ✅ **已完成**
 **目标**：实现 OpenAI 兼容的 ContentGenerator
-**文件影响分析**：
-- 🆕 `packages/core/src/providers/adapters/openai.ts` - **新建**
-- ✅ `packages/core/src/core/contentGenerator.ts` - **修改** (工厂函数扩展)
-
-**侵入性评级**：🟢 **低** - 主要是新建组件，少量工厂函数扩展
-
-### Phase 5: 分层配置架构重构 (PR5)
-**目标**：实现系统级配置与用户自定义配置的分离和继承机制
-**核心问题解决**：
-- 解决适配器内置配置与用户配置的分离问题
-- 实现模型级别配置的继承和覆盖机制
-- 支持Provider级别和适配器级别的配置覆盖
-
-**文件影响分析**：
-- ✅ `packages/cli/src/config/settings.ts` - **重构** (分层配置接口设计)
-- 🆕 `packages/core/src/providers/adapters/config-loader.ts` - **新建** (配置加载器)
-- 🆕 `packages/core/src/providers/adapters/config-resolver.ts` - **新建** (配置解析器)
-- ✅ `packages/core/src/providers/adapters/openai/adapter.ts` - **修改** (支持分层配置)
-- ✅ `packages/core/src/providers/adapters/anthropic/adapter.ts` - **修改** (支持分层配置)
-
-**侵入性评级**：🟡 **中等** - 配置架构重构，但向后兼容
-
-### Phase 5.1: 配置结构增强和默认模型选择 ✅ **已完成**
-基于Phase 4的实现，需要增强配置结构以支持以下功能：
-- [x] **添加modelOverrides字段支持**: 允许对特定模型进行详细配置覆盖
-- [x] **默认模型选择机制**: 配置完成后自动将第一个模型设置为当前模型
-- [ ] **当前Provider/Model显示**: 在聊天界面显示当前使用的Provider和Model信息
-- [x] **配置结构文档更新**: 更新文档以反映新的配置结构
-
-##### Phase 5.1 详细需求说明
-1. **modelOverrides字段支持**
-   - 在CustomProviderConfig接口中添加modelOverrides字段
-   - 该字段用于存储特定模型的覆盖配置
-   - 配置优先级：用户特定模型配置 > 适配器默认配置
-
-2. **默认模型选择机制**
-   - 用户完成Custom Provider配置后，自动将第一个可用模型设置为当前模型
-   - 避免用户配置完成后无法立即使用的问题
-   - 优先级顺序：models中的第一个模型 > modelOverrides中的第一个模型 > 默认值
-
-3. **当前Provider/Model显示**
-   - 在聊天界面的合适位置显示当前使用的Provider和Model
-   - 显示格式示例："当前模型: DeepSeek (deepseek-chat)"
-   - 为用户提供清晰的上下文信息
-
-4. **向后兼容性**
-   - 确保现有配置文件可以正常工作
-   - 对于缺少modelOverrides字段的配置文件保持兼容
-
-#### Phase 5.2: 聊天界面显示当前Provider和Model信息 🚧 **待实现**
-基于Phase 5.1的实现，需要在聊天界面显示当前使用的Provider和Model信息：
-- [ ] **创建状态显示组件**: 在聊天界面合适位置显示当前Provider和Model
-- [ ] **实现信息获取逻辑**: 从配置中获取当前Provider和Model信息
-- [ ] **设计显示格式**: 确定清晰直观的显示格式
-- [ ] **添加到聊天界面**: 将状态显示组件集成到聊天界面中
-
-##### Phase 5.2 详细需求说明
-1. **状态显示组件**
-   - 创建一个轻量级的组件，用于显示当前Provider和Model信息
-   - 组件应该简洁明了，不干扰正常的聊天体验
-   - 显示格式示例："当前模型: DeepSeek (deepseek-chat)"
-
-2. **信息获取逻辑**
-   - 从settings配置中获取currentProvider和currentModel值
-   - 如果是自定义Provider，显示Provider名称和模型ID
-   - 如果是内置Provider（Google），显示相应信息
-
-3. **显示位置**
-   - 在聊天界面的顶部或底部显示
-   - 可以考虑放在输入框附近，方便用户查看
-   - 设计应与整体UI风格保持一致
-
-4. **用户体验**
-   - 显示信息应清晰可读
-   - 可以考虑添加颜色区分或图标标识
-   - 当前模型信息应该实时更新
-
-#### Phase 5.3: 聊天界面显示当前Provider和Model信息 ✅ **已完成**
-基于Phase 5.1的实现，需要在聊天界面显示当前使用的Provider和Model信息：
-- [x] **创建状态显示组件**: 在聊天界面合适位置显示当前Provider和Model
-- [x] **实现信息获取逻辑**: 从配置中获取当前Provider和Model信息
-- [x] **设计显示格式**: 确定清晰直观的显示格式
-- [x] **添加到聊天界面**: 将状态显示组件集成到聊天界面中
-
-##### Phase 5.3 详细需求说明
-1. **状态显示组件**
-   - 创建一个轻量级的组件，用于显示当前Provider和Model信息
-   - 组件应该简洁明了，不干扰正常的聊天体验
-   - 显示格式示例："当前模型: DeepSeek (deepseek-chat)"
-
-2. **信息获取逻辑**
-   - 从settings配置中获取currentProvider和currentModel值
-   - 如果是自定义Provider，显示Provider名称和模型ID
-   - 如果是内置Provider（Google），显示相应信息
-
-3. **显示位置**
-   - 在聊天界面的顶部或底部显示
-   - 可以考虑放在输入框附近，方便用户查看
-   - 设计应与整体UI风格保持一致
-
-4. **用户体验**
-   - 显示信息应清晰可读
-   - 可以考虑添加颜色区分或图标标识
-   - 当前模型信息应该实时更新
-
-### Phase 6: 配置UI重构 - 参考qwen-code设计 🚧 **待实现**
-**目标**：实现更好的配置UI体验，支持分层配置
-**核心改进**：
-- 参考qwen-code的键盘导航和输入体验
-- 支持模型级别的详细配置
-- 实现配置的继承和覆盖UI
-
-**文件影响分析**：
-- ✅ `packages/cli/src/ui/components/ProviderConfigSteps.tsx` - **重构** (参考qwen-code UI)
-- 🆕 `packages/cli/src/ui/components/ConfigFieldInput.tsx` - **新建** (通用配置输入组件)
-- 🆕 `packages/cli/src/ui/components/ModelConfigDialog.tsx` - **新建** (模型详细配置对话框)
-- 🆕 `packages/cli/src/ui/components/AdapterModelSelector.tsx` - **新建** (适配器模型选择器)
-
-**侵入性评级**：🟡 **中等** - UI组件重构
-
-### Phase 7: 配置流程优化 (PR7)
-**目标**：优化配置流程，支持模型的智能选择和配置
 **核心功能**：
+- OpenAI 格式与 Gemini 格式的双向转换
+- 流式响应支持
+- createContentGenerator 工厂函数扩展
+
+### Phase 5: 模拟配置进行测试 🚧 **待实现**
+**目标**：现在已经实现了phase1-4，应该有能正常使用了才对
+**测试准备**：
+- 准备 custom provider 正常配置会对应生成的那个配置文件，手工创建一个
+- 准备里面真实的 baseurl,apikey,model,modelOverride等配置
+**测试项目**：
+- 测试启动 gemini cli，当有 custom provider 配置时，gemini cli 应该直接启动
+- 测试根ai 对话是否能正确对话
+
+### Phase 6: 配置UI重构和逻辑修改 🚧 **待实现**
+**目标**：优化配置流程，由于我们一些用户可以自定义的配置，我们会让用户配置，所以配置过程空格里应该有 placeholder 作为参考，不改的将使用 placeholder值
+**核心功能**：
+- 参考 qwen-code 项目，配置UI支持键盘导航，具体可参考：/Users/zhaoyu/Downloads/coding/gemini-cli/qwen-code/ 项目，你去找一下组建在哪里
+- 配置后生成在 custom provider 的配置文件内供适配器按字段读取并覆盖
+
+**关键特性**：
 - 基于适配器默认模型的智能推荐
 - 支持模型配置的继承选择
 - 实现配置预览和验证
+- 让用户更容易配置出符合官方模型需求
 
-**文件影响分析**：
-- ✅ `packages/cli/src/ui/components/CustomProviderFlow.tsx` - **修改** (支持新的配置流程)
-- 🆕 `packages/cli/src/ui/components/ModelInheritanceSelector.tsx` - **新建** (模型继承选择器)
-- 🆕 `packages/cli/src/ui/components/ConfigPreviewDialog.tsx` - **新建** (配置预览对话框)
+### Phase 7: 聊天界面状态显示 🚧 **待实现**
+**目标**：在聊天界面显示当前使用的 Provider 和 Model 信息
+**核心功能**：
+- 轻量级状态显示组件
+- 实时获取当前 Provider 和 Model 信息
+- 清晰直观的显示格式
 
-**侵入性评级**：🟢 **低** - 主要是UI流程优化
+### Phase 8: /model 命令支持 🚧 **待实现** 
+**目标**：支持切换已经配置好的模型
+**核心功能**：
+- **/model 命令实现** - 跨 Provider 模型切换功能
+- **模型选择对话框** - 统一的模型选择界面
 
-### Phase 8: /model 命令和集成测试 (PR8)
-**目标**：完善用户体验和质量保证
-**文件影响分析**：
-- 🆕 `packages/cli/src/ui/commands/modelCommand.ts` - **新建**
-- 🆕 相关测试文件 - **新建**
+**关键特性**：
+- 直观的模型选择界面，显示 Provider 和模型信息
+- 方向键可选择，回车确认，确认后回到聊天界面，显示切换后的最新 provider 和 model信息
 
-**侵入性评级**：🔵 **零侵入** - 全新功能组件
-
-### 总体侵入性评估
-
-#### 📊 文件统计
-- **现有文件修改**: 4个 (极低侵入性修改)
-- **新建文件**: 6个+ (零侵入性)
-- **总文件影响**: 10个+
-
-#### 🎯 关键代码定位
-- **AuthDialog.tsx:101-109** - handleAuthSelect 函数 (核心修改点)
-- **auth.ts:validateAuthMethod** - 验证逻辑增强
-- **contentGenerator.ts** - 枚举扩展和工厂函数增强
-
-#### ✅ 侵入性控制原则
-1. **精确定位**: 仅修改确定需要改动的关键函数
-2. **条件分支**: 新功能通过条件分支实现，不影响现有流程
-3. **向后兼容**: 所有修改保持与现有功能完全兼容
-4. **独立封装**: 新功能组件完全独立，可单独维护
-
-## 架构演进分析
-
-### Phase 1-4 已实现功能回顾
-通过前4个Phase，我们已经成功实现了：
-- ✅ **基础Custom Provider支持** - 用户可以添加自定义供应商
-- ✅ **简单的配置流程** - 适配器选择、基本信息配置
-- ✅ **OpenAI适配器实现** - 支持主流OpenAI兼容API
-- ✅ **基础UI组件** - 分步配置界面和选择对话框
-
-### Phase 5-8 新增需求分析
-
-#### 🔍 **发现的核心问题**
-1. **配置层次混乱**：当前用户配置只是简单的字符串数组，无法利用适配器的丰富默认配置
-2. **模型配置缺失**：适配器内置了详细的模型信息（上下文窗口、功能特性等），但用户配置无法继承或覆盖
-3. **UI体验不佳**：配置流程过于简化，缺少智能推荐和详细配置选项
-4. **扩展性受限**：无法支持复杂的适配器级别配置覆盖
-
-#### 🎯 **Phase 5-8 解决方案**
-
-**Phase 5: 分层配置架构重构**
-- **问题**：配置结构过于简单，无法支持复杂的继承和覆盖需求
-- **解决**：重新设计配置接口，支持模型级别的详细配置和适配器级别的覆盖
-- **价值**：为后续的智能配置和高级功能奠定基础
-
-**Phase 6: 配置UI重构**
-- **问题**：当前UI过于简化，用户体验不够友好
-- **解决**：参考qwen-code的优秀设计，实现更好的键盘导航和输入体验
-- **价值**：显著提升用户配置体验，降低配置门槛
-
-**Phase 7: 配置流程优化**
-- **问题**：配置流程缺少智能推荐和预览功能
-- **解决**：基于适配器默认配置提供智能推荐，支持配置预览和验证
-- **价值**：让用户更容易配置出最优的Provider设置
-
-**Phase 8: 功能完善和测试**
-- **问题**：缺少跨Provider的模型切换功能
-- **解决**：实现/model命令，完善测试覆盖
-- **价值**：提供完整的用户体验闭环
-
-### 设计原则与约束
-
-#### 🔒 **向后兼容性保证**
-- 所有新的配置结构都支持从旧格式自动迁移
-- 现有的Phase 1-4功能完全不受影响
-- 用户可以选择使用简单配置或高级配置
-
-#### 🎨 **用户体验优先**
-- 参考qwen-code的成功设计模式
-- 支持键盘导航和快捷操作
-- 提供智能默认值和推荐配置
-
-#### 🔧 **架构可扩展性**
-- 分层配置支持未来更多适配器类型
-- 配置解析器支持复杂的继承和覆盖逻辑
-- UI组件设计为可复用和可扩展
-
-## 总结
-
-### 架构优势
-1. **最小侵入**：仅修改关键函数，保持现有架构稳定
-2. **完全绕过Google登录**：Custom Provider 不依赖任何 Google 服务
-3. **分层配置架构**：支持系统级配置与用户配置的智能继承和覆盖
-4. **优秀的用户体验**：参考qwen-code设计，提供直观的配置流程
-5. **高度可扩展**：支持复杂的适配器配置和模型管理
-
-### 关键特性
-- ✅ **Phase 1-4已实现**：基础Custom Provider支持和OpenAI适配器
-- 🚧 **Phase 5-8待实现**：分层配置、UI优化、智能推荐、功能完善
-
-#### 已实现功能 (Phase 1-4)
-- ✅ **启动时自动 Google 登录，用户可按 ESC 返回选择其他方式**
-- ✅ **选择 Custom Provider 完全绕过 Google 认证**
-- ✅ **分步配置：适配器 → 名称 → BaseURL → API Key → 模型**
-- ✅ **支持已有配置列表和新建配置**
-- ✅ **基础的OpenAI兼容适配器支持**
-
-#### 待实现功能 (Phase 5-8)
-- 🚧 **分层配置架构**：模型级别配置继承和覆盖
-- 🚧 **智能模型推荐**：基于适配器默认配置的推荐系统
-- 🚧 **优化的配置UI**：参考qwen-code的键盘导航体验
-- 🚧 **配置预览和验证**：实时配置验证和预览功能
-- 🚧 **/model 命令支持跨 Provider 模型切换**
-
-这个演进方案在保持Phase 1-4已有成果的基础上，通过Phase 5-8的增强实现了从"能用"到"好用"的质的飞跃，为用户提供了企业级的配置管理体验。
 
 ## Git分支管理策略与开发TODO
 
@@ -1215,196 +1011,7 @@ main (受保护，仅允许人工合并)
     ├── feature/phase2-auth-dialog (Phase 2: AuthDialog组件修改)  
     ├── feature/phase3-config-ui (Phase 3: 配置UI组件)
     ├── feature/phase4-openai-adapter (Phase 4: OpenAI适配器)
-    └── feature/phase5-model-command (Phase 5: /model命令和测试)
 ```
-
-### 开发工作流程
-
-#### Phase 1: 核心认证流程修改 (feature/phase1-auth-core)
-**分支来源**: `develop`  
-**目标**: 最小侵入添加Custom Provider支持  
-**开发任务**:
-- [x] 添加AuthType.CUSTOM_PROVIDER枚举
-- [x] 修改validateAuthMethod函数支持Custom Provider
-- [x] 扩展Settings接口添加customProviders字段
-- [x] 扩展createContentGenerator工厂函数
-- [x] Phase1集成测试和代码review
-
-**验收标准**:
-- ✅ AuthType枚举包含CUSTOM_PROVIDER
-- ✅ validateAuthMethod对Custom Provider返回null
-- ✅ Settings接口支持customProviders配置
-- ✅ 现有功能完全不受影响
-
-#### Phase 2: AuthDialog组件修改 (feature/phase2-auth-dialog)  
-**分支来源**: `develop` (包含Phase1修改)  
-**目标**: UI层支持Custom Provider选项  
-**开发任务**:
-- [x] 修改AuthDialog.tsx添加Custom Provider选项
-- [x] 实现handleAuthSelect函数Custom Provider分支
-- [x] 添加showCustomProviderFlow状态管理
-- [x] Phase2集成测试和UI验证
-
-**验收标准**:
-- ✅ 认证选择界面显示Custom Provider选项
-- ✅ 选择Custom Provider触发正确的流程分支
-- ✅ ESC可以正常返回认证选择界面
-
-#### Phase 3: Custom Provider配置组件 (feature/phase3-config-ui)  
-**分支来源**: `develop`  
-**目标**: 完整的分步配置流程  
-**开发任务**:
-- [x] 创建CustomProviderFlow主流程组件
-- [x] 创建ProviderSelectionDialog选择组件
-- [x] 创建ProviderConfigSteps分步配置组件
-- [x] 实现配置验证和错误处理逻辑
-- [x] Phase3用户体验测试
-
-**验收标准**:
-- ✅ 支持选择已有Provider或新建Provider
-- ✅ 分步配置流程: 适配器→名称→BaseURL→API Key→模型
-- ✅ 输入验证和错误提示完善
-- ✅ 配置完成后自动保存并进入聊天
-
-#### Phase 4: OpenAI适配器实现 ✅ **已完成**
-- [x] **开发分支创建**: feature/phase4-openai-adapter
-- [x] **适配器基础结构**: 已完成
-- [x] **格式转换实现**: 已完成
-- [x] **ContentGenerator实现**: 已完成
-- [x] **测试和审查**: 已完成
-- [x] **合并到develop**: 已完成
-
-#### Phase 5: 分层配置架构重构 🚧 **待实现**
-- [ ] **开发分支创建**: feature/phase5-layered-config
-- [ ] **Settings接口重构**: 未开始
-- [ ] **配置加载器实现**: 未开始
-- [ ] **配置解析器实现**: 未开始
-- [ ] **适配器配置支持**: 未开始
-- [ ] **向后兼容性测试**: 未开始
-- [ ] **合并到develop**: 未开始
-
-#### Phase 5.1: 配置结构增强和默认模型选择 ✅ **已完成**
-基于Phase 4的实现，需要增强配置结构以支持以下功能：
-- [x] **添加modelOverrides字段支持**：允许对特定模型进行详细配置覆盖
-- [x] **默认模型选择机制**：配置完成后自动将第一个模型设置为当前模型
-- [ ] **当前Provider/Model显示**：在聊天界面显示当前使用的Provider和Model信息
-- [x] **配置结构文档更新**：更新文档以反映新的配置结构
-
-##### Phase 5.1 详细需求说明
-1. **modelOverrides字段支持**
-   - 在CustomProviderConfig接口中添加modelOverrides字段
-   - 该字段用于存储特定模型的覆盖配置
-   - 配置优先级：用户特定模型配置 > 适配器默认配置
-
-2. **默认模型选择机制**
-   - 用户完成Custom Provider配置后，自动将第一个可用模型设置为当前模型
-   - 避免用户配置完成后无法立即使用的问题
-   - 优先级顺序：models中的第一个模型 > modelOverrides中的第一个模型 > 默认值
-
-3. **当前Provider/Model显示**
-   - 在聊天界面的合适位置显示当前使用的Provider和Model
-   - 显示格式示例：`当前模型: DeepSeek (deepseek-chat)`
-   - 为用户提供清晰的上下文信息
-
-4. **向后兼容性**
-   - 确保现有配置文件可以正常工作
-   - 对于缺少modelOverrides字段的配置文件保持兼容
-
-#### Phase 5.2: 聊天界面显示当前Provider和Model信息 🚧 **待实现**
-基于Phase 5.1的实现，需要在聊天界面显示当前使用的Provider和Model信息：
-- [ ] **创建状态显示组件**: 在聊天界面合适位置显示当前Provider和Model
-- [ ] **实现信息获取逻辑**: 从配置中获取当前Provider和Model信息
-- [ ] **设计显示格式**: 确定清晰直观的显示格式
-- [ ] **添加到聊天界面**: 将状态显示组件集成到聊天界面中
-
-##### Phase 5.2 详细需求说明
-1. **状态显示组件**
-   - 创建一个轻量级的组件，用于显示当前Provider和Model信息
-   - 组件应该简洁明了，不干扰正常的聊天体验
-   - 显示格式示例："当前模型: DeepSeek (deepseek-chat)"
-
-2. **信息获取逻辑**
-   - 从settings配置中获取currentProvider和currentModel值
-   - 如果是自定义Provider，显示Provider名称和模型ID
-   - 如果是内置Provider（Google），显示相应信息
-
-3. **显示位置**
-   - 在聊天界面的顶部或底部显示
-   - 可以考虑放在输入框附近，方便用户查看
-   - 设计应与整体UI风格保持一致
-
-4. **用户体验**
-   - 显示信息应清晰可读
-   - 可以考虑添加颜色区分或图标标识
-   - 当前模型信息应该实时更新
-
-#### Phase 5.3: 聊天界面显示当前Provider和Model信息 ✅ **已完成**
-基于Phase 5.1的实现，需要在聊天界面显示当前使用的Provider和Model信息：
-- [x] **创建状态显示组件**: 在聊天界面合适位置显示当前Provider和Model
-- [x] **实现信息获取逻辑**: 从配置中获取当前Provider和Model信息
-- [x] **设计显示格式**: 确定清晰直观的显示格式
-- [x] **添加到聊天界面**: 将状态显示组件集成到聊天界面中
-
-##### Phase 5.3 详细需求说明
-1. **状态显示组件**
-   - 创建一个轻量级的组件，用于显示当前Provider和Model信息
-   - 组件应该简洁明了，不干扰正常的聊天体验
-   - 显示格式示例："当前模型: DeepSeek (deepseek-chat)"
-
-2. **信息获取逻辑**
-   - 从settings配置中获取currentProvider和currentModel值
-   - 如果是自定义Provider，显示Provider名称和模型ID
-   - 如果是内置Provider（Google），显示相应信息
-
-3. **显示位置**
-   - 在聊天界面的顶部或底部显示
-   - 可以考虑放在输入框附近，方便用户查看
-   - 设计应与整体UI风格保持一致
-
-4. **用户体验**
-   - 显示信息应清晰可读
-   - 可以考虑添加颜色区分或图标标识
-   - 当前模型信息应该实时更新
-
-#### Phase 6: 配置UI重构 - 参考qwen-code设计 🚧 **待实现**
-**分支来源**: `develop`  
-**目标**: 实现更好的配置UI体验，支持分层配置  
-**开发任务**:
-- [ ] **开发分支创建**: feature/phase6-ui-refactor
-- [ ] **ConfigFieldInput组件**: 未开始
-- [ ] **AdapterModelSelector组件**: 未开始
-- [ ] **ModelConfigDialog组件**: 未开始
-- [ ] **ProviderConfigSteps重构**: 未开始
-- [ ] **键盘导航优化**: 未开始
-- [ ] **合并到develop**: 未开始
-
-#### Phase 7: 配置流程优化 (feature/phase7-flow-optimization)
-**分支来源**: `develop`  
-**目标**: 优化配置流程，支持模型的智能选择和配置  
-**开发任务**:
-- [ ] **开发分支创建**: feature/phase7-flow-optimization
-- [ ] **CustomProviderFlow修改**: 未开始
-- [ ] **ModelInheritanceSelector组件**: 未开始
-- [ ] **ConfigPreviewDialog组件**: 未开始
-- [ ] **智能模型推荐**: 未开始
-- [ ] **配置验证增强**: 未开始
-- [ ] **合并到develop**: 未开始
-
-#### Phase 8: /model命令和集成测试 (feature/phase8-model-command)
-**分支来源**: `develop`  
-**目标**: 完善用户体验和质量保证  
-**开发任务**:
-- [ ] **开发分支创建**: feature/phase8-model-command
-- [ ] **/model命令实现**: 未开始
-- [ ] **跨Provider切换**: 未开始
-- [ ] **测试套件完善**: 未开始
-- [ ] **文档更新**: 未开始
-- [ ] **合并到develop**: 未开始
-
-#### 最终发布
-- [ ] **develop合并到main**: 未开始
-- [ ] **版本标签**: 未开始
-- [ ] **发布说明**: 未开始
 
 ### 开发注意事项
 

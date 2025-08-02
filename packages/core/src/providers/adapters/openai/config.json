@@ -48,6 +48,11 @@
     "quotaErrorStatus": 429,
     "errorMessagePath": "error.message"
   },
+  "requestHeaders": {
+    "required": {
+      "Authorization": "Bearer {apiKey}"
+    }
+  },
   "defaultModels": {
     "gpt-4o": {
       "displayName": "GPT-4o",

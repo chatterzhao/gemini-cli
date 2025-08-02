@@ -45,4 +45,19 @@ for (const file of vsixFiles) {
   copyFileSync(join(root, file), join(bundleDir, basename(file)));
 }
 
+// Copy adapter config files
+const adapterConfigFiles = glob.sync('packages/core/src/providers/adapters/*/config.json', { cwd: root });
+for (const file of adapterConfigFiles) {
+  const relativePath = file.replace('packages/core/src/providers/', '');
+  const targetPath = join(bundleDir, relativePath);
+  const targetDir = dirname(targetPath);
+  
+  // Create directory if it doesn't exist
+  if (!existsSync(targetDir)) {
+    mkdirSync(targetDir, { recursive: true });
+  }
+  
+  copyFileSync(join(root, file), targetPath);
+}
+
 console.log('Assets copied to bundle/');

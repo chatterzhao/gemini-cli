@@ -29,6 +29,15 @@ import {
   ToolConfig,
 } from '@google/genai';
 
+// 扩展GenerateContentConfig接口以支持response_format参数
+declare module '@google/genai' {
+  interface GenerateContentConfig {
+    response_format?: {
+      type: 'json_object' | 'text';
+    };
+  }
+}
+
 export interface CAGenerateContentRequest {
   model: string;
   project?: string;

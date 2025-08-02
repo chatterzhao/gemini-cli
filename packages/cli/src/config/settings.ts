@@ -59,10 +59,37 @@ export interface AccessibilitySettings {
 export interface CustomProviderConfig {
   id: string;                  // 唯一标识
   name: string;               // 显示名称  
+  displayName: string;        // 显示名称（用于UI显示）
   adapterType: 'openai' | 'anthropic';
   baseUrl: string;
+  /**
+   * API密钥，可以直接指定或通过环境变量引用两种方式，如果手工编辑，格式参考：
+   * 直接指定: "sk-xxx"
+   * 环境变量引用: "$DEEPSEEK_API_KEY"
+   */
   apiKey: string;
   models: string[];           // 可用模型列表
+  
+  // 模型覆盖配置 - 允许对特定模型进行详细配置覆盖
+  modelOverrides?: Record<string, {
+    contextWindow?: number;
+    maxOutputTokens?: number;
+    supportedModalities?: string[];
+    features?: {
+      streaming?: boolean;
+      functionCalling?: boolean;
+      vision?: boolean;
+    };
+  }>;
+  
+  // Provider级别覆盖配置 - 允许对特定Provider进行详细配置覆盖
+  providerOverrides?: {
+    timeout?: number;
+    maxRetries?: number;
+    customHeaders?: Record<string, string>;
+    [key: string]: any;
+  };
+  
   createdAt?: string;         // 创建时间
   updatedAt?: string;         // 更新时间
 }

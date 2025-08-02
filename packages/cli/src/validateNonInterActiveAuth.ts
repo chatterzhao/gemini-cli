@@ -5,7 +5,7 @@
  */
 
 import { AuthType, Config } from '@google/gemini-cli-core';
-import { USER_SETTINGS_PATH } from './config/settings.js';
+import { USER_SETTINGS_PATH, loadSettings } from './config/settings.js';
 import { validateAuthMethod } from './config/auth.js';
 
 function getAuthTypeFromEnv(): AuthType | undefined {
@@ -40,6 +40,17 @@ export async function validateNonInteractiveAuth(
     process.exit(1);
   }
 
-  await nonInteractiveConfig.refreshAuth(effectiveAuthType);
+  // 对于 Custom Provider，需要传递 customProviderSettings
+  if (effectiveAuthType === AuthType.CUSTOM_PROVIDER) {
+    const settings = loadSettings(nonInteractiveConfig.getTargetDir());
+    const customProviderSettings = {
+      currentProvider: settings.merged.currentProvider,
+      customProviders: settings.merged.customProviders
+    };
+    await nonInteractiveConfig.refreshAuth(effectiveAuthType, customProviderSettings);
+  } else {
+    await nonInteractiveConfig.refreshAuth(effectiveAuthType);
+  }
+  
   return nonInteractiveConfig;
 }

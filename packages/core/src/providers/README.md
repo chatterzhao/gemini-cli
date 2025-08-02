@@ -163,7 +163,7 @@ providers/
 
 ### 示例配置
 
-``json
+```json
 {
   "id": "deepseek",
   "name": "DeepSeek",
@@ -201,7 +201,7 @@ providers/
 
 如果新模型兼容现有API格式（如OpenAI格式），只需在用户配置中添加：
 
-```
+```json
 {
   "id": "new-provider",
   "name": "New Provider",
@@ -228,7 +228,7 @@ providers/
 
 如果需要为所有用户添加新模型，修改对应的适配器JSON：
 
-```
+```json
 {
   "defaultModels": {
     "existing-model": { ... },
@@ -277,7 +277,7 @@ providers/
 - 适用于支持usage字段的API
 
 ### 估算计数
-```
+```json
 {
   "tokenCounting": {
     "method": "estimation",
@@ -318,7 +318,7 @@ providers/
 - 不支持视觉
 
 ### 用户配置方式
-```
+```json
 {
   "id": "deepseek-v3",
   "name": "DeepSeek V3",
@@ -343,7 +343,7 @@ providers/
 
 ### 适配器JSON更新方式
 在 `adapters/openai.json` 中添加：
-```
+```json
 {
   "defaultModels": {
     "deepseek-chat-v3": {

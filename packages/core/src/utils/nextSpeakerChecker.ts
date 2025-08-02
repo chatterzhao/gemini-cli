@@ -108,11 +108,29 @@ export async function checkNextSpeaker(
   ];
 
   try {
+    // Determine the appropriate model to use
+    let modelToUse = DEFAULT_GEMINI_FLASH_LITE_MODEL;
+    
+    // Try to get the current model from the client's config
+    try {
+      // Using reflection to access private config property
+      const config = (geminiClient as any).config;
+      if (config && typeof config.getModel === 'function') {
+        const currentModel = config.getModel();
+        if (currentModel) {
+          modelToUse = currentModel;
+        }
+      }
+    } catch (e) {
+      // If we can't access the config or get the model, fall back to default
+      console.debug('Could not access client config to determine model, using default');
+    }
+
     const parsedResponse = (await geminiClient.generateJson(
       contents,
       RESPONSE_SCHEMA,
       abortSignal,
-      DEFAULT_GEMINI_FLASH_LITE_MODEL,
+      modelToUse,
     )) as unknown as NextSpeakerResponse;
 
     if (
