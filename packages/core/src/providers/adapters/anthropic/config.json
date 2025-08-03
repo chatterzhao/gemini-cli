@@ -61,10 +61,10 @@
   },
   
   "defaultModels": {
-    "claude-3-opus": {
-      "displayName": "Claude 3 Opus",
+    "claude-sonnet-4-20250514": {
+      "displayName": "Claude sonnet 4 20250514",
       "contextWindow": 200000,
-      "maxOutputTokens": 4096,
+      "maxOutputTokens": 64000,
       "supportedModalities": ["text", "image"],
       "features": {
         "streaming": true,
@@ -72,25 +72,14 @@
         "vision": true
       }
     },
-    "claude-3-sonnet": {
-      "displayName": "Claude 3 Sonnet",
+    "claude-opus-4-20250514": {
+      "displayName": "Claude opus 4 20250514",
       "contextWindow": 200000,
-      "maxOutputTokens": 4096,
+      "maxOutputTokens": 32000,
       "supportedModalities": ["text", "image"],
       "features": {
         "streaming": true,
         "functionCalling": true,
-        "vision": true
-      }
-    },
-    "claude-3-haiku": {
-      "displayName": "Claude 3 Haiku",
-      "contextWindow": 200000,
-      "maxOutputTokens": 4096,
-      "supportedModalities": ["text", "image"],
-      "features": {
-        "streaming": true,
-        "functionCalling": false,
         "vision": true
       }
     }

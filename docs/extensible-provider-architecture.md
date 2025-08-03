@@ -49,7 +49,7 @@ export enum AuthType {
 
 #### 1.2 认证验证逻辑修改
 
-``typescript
+```typescript
 // packages/cli/src/config/auth.ts - 精确修改 validateAuthMethod 函数
 export const validateAuthMethod = (authMethod: string): string | null => {
   loadEnvironment();
@@ -80,7 +80,7 @@ export const validateAuthMethod = (authMethod: string): string | null => {
 
 #### 2.1 核心处理逻辑修改
 
-``typescript
+```typescript
 // packages/cli/src/ui/components/AuthDialog.tsx
 export function AuthDialog({ onSelect, settings, initialErrorMessage }: AuthDialogProps) {
   const [showCustomProviderFlow, setShowCustomProviderFlow] = useState(false);
@@ -151,7 +151,7 @@ export function AuthDialog({ onSelect, settings, initialErrorMessage }: AuthDial
 
 #### 3.1 CustomProviderFlow - 主流程控制器
 
-``typescript
+```typescript
 // packages/cli/src/ui/components/CustomProviderFlow.tsx
 export function CustomProviderFlow({ settings, onComplete, onCancel }: Props) {
   const [step, setStep] = useState<'list' | 'adapter' | 'name' | 'baseurl' | 'apikey' | 'models'>('list');
@@ -241,7 +241,7 @@ export function CustomProviderFlow({ settings, onComplete, onCancel }: Props) {
 
 #### 3.2 ConfigFieldInput - 通用配置输入组件（参考qwen-code）
 
-``typescript
+```typescript
 // packages/cli/src/ui/components/ConfigFieldInput.tsx
 export function ConfigFieldInput({
   label,
@@ -344,7 +344,7 @@ export function ConfigFieldInput({
 
 #### 3.3 AdapterModelSelector - 适配器模型选择器
 
-``typescript
+```typescript
 // packages/cli/src/ui/components/AdapterModelSelector.tsx
 export function AdapterModelSelector({
   adapterConfig,
@@ -461,7 +461,7 @@ export function AdapterModelSelector({
 
 #### 3.4 ModelConfigDialog - 模型详细配置对话框
 
-``typescript
+```typescript
 // packages/cli/src/ui/components/ModelConfigDialog.tsx
 export function ModelConfigDialog({
   modelId,
@@ -575,7 +575,7 @@ export function ModelConfigDialog({
 
 #### 4.1 配置层次结构
 
-``typescript
+```typescript
 // packages/cli/src/config/settings.ts - 重新设计配置结构
 
 export interface Settings {
@@ -696,7 +696,7 @@ export interface UserProviderConfig {
 
 **配置优先级**：用户配置 > 适配器默认配置
 
-``typescript
+```typescript
 // 配置解析逻辑
 function resolveModelConfig(
   modelId: string, 
@@ -729,40 +729,91 @@ function resolveModelConfig(
 
 #### 4.3 配置文件示例
 
-```
-[
-  {
-    "id": "deepseek",
-    "name": "DeepSeek",
-    "adapterType": "openai",
-    "baseUrl": "https://api.deepseek.com/v1",
-    "apiKey": "${DEEPSEEK_API_KEY}",
-    "models": ["deepseek-chat", "deepseek-coder", "deepseek-reasoner"],
-    "modelOverrides": {
-      "deepseek-reasoner": {
-        "contextWindow": 32768,
-        "maxOutputTokens": 4096,
-        "features": {
-          "streaming": true,
-          "functionCalling": true,
-          "vision": false
+```json
+{
+  "selectedAuthType": "oauth-personal",
+  "currentProvider": "deepseek",
+  "currentModel": "deepseek-chat",
+  "customProviders": {
+    "deepseek": {
+      "id": "deepseek",
+      "name": "DeepSeek",
+      "adapterType": "openai",
+      "baseUrl": "https://api.deepseek.com/v1",
+      "apiKey": "${DEEPSEEK_API_KEY}",
+      "models": ["deepseek-chat", "deepseek-reasoner"],
+      "modelOverrides": {
+        "deepseek-chat": {
+          "contextWindow": 32768,
+          "maxOutputTokens": 4096,
+          "supportedModalities": ["text"],
+          "features": {
+            "streaming": true,
+            "functionCalling": true,
+            "vision": false
+          }
+        },
+        "deepseek-reasoner": {
+          "contextWindow": 32768,
+          "maxOutputTokens": 4096,
+          "supportedModalities": ["text"],
+          "features": {
+            "streaming": true,
+            "functionCalling": true,
+            "vision": false
+          }
         }
-      }
+      },
+      "providerOverrides": {
+        "timeout": 45000,
+        "maxRetries": 3
+      },
+      "createdAt": "2025-01-01T00:00:00Z"
     },
-    "providerOverrides": {
-      "timeout": 45000,
-      "maxRetries": 3
-    },
-    "createdAt": "2025-01-01T00:00:00Z"
+    "anthropic": {
+      "id": "anthropic",
+      "name": "Anthropic",
+      "adapterType": "openai",
+      "baseUrl": "https://api.anthropic.com/v1",
+      "apiKey": "${ANTHROPIC_API_KEY}",
+      "models": ["claude-sonnet-4-20250514","claude-opus-4-20250514"],
+      "modelOverrides": {
+        "claude-sonnet-4-20250514": {
+          "contextWindow": 200000,
+          "maxOutputTokens": 64000,
+          "supportedModalities": ["text", "image"],
+          "features": {
+            "streaming": true,
+            "functionCalling": true,
+            "vision": false
+          }
+        },
+        "claude-opus-4-20250514": {
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "supportedModalities": ["text", "image"],
+          "features": {
+            "streaming": true,
+            "functionCalling": true,
+            "vision": false
+          }
+        }
+      },
+      "providerOverrides": {
+        "timeout": 45000,
+        "maxRetries": 3
+      },
+      "createdAt": "2025-01-01T00:00:00Z"
+    }
   }
-]
+}
 ```
 
 ### 5. ContentGenerator 适配器系统
 
 #### 5.1 OpenAI 兼容适配器
 
-``typescript
+```typescript
 // packages/core/src/providers/adapters/openai.ts
 export class OpenAIContentGenerator implements ContentGenerator {
   private client: OpenAI;
@@ -800,7 +851,7 @@ export class OpenAIContentGenerator implements ContentGenerator {
 
 #### 5.2 ContentGenerator 工厂扩展
 
-``typescript
+```typescript
 // packages/core/src/core/contentGenerator.ts - 扩展 createContentGenerator
 export async function createContentGenerator(
   config: Config,
@@ -848,7 +899,7 @@ async function createCustomProviderContentGenerator(
 
 ### 6. /model 命令支持
 
-``typescript
+```typescript
 // packages/cli/src/ui/commands/modelCommand.ts
 export const modelCommand: SlashCommand = {
   name: 'model',
@@ -962,7 +1013,7 @@ async function getAvailableModels(settings: LoadedSettings) {
 - 流式响应支持
 - createContentGenerator 工厂函数扩展
 
-### Phase 5: 模拟配置进行测试 🚧 **待实现**
+### Phase 5: 模拟配置进行测试 ✅ **已完成**
 **目标**：现在已经实现了phase1-4，应该有能正常使用了才对
 **测试准备**：
 - 准备 custom provider 正常配置会对应生成的那个配置文件，手工创建一个
@@ -971,17 +1022,98 @@ async function getAvailableModels(settings: LoadedSettings) {
 - 测试启动 gemini cli，当有 custom provider 配置时，gemini cli 应该直接启动
 - 测试根ai 对话是否能正确对话
 
-### Phase 6: 配置UI重构和逻辑修改 🚧 **待实现**
-**目标**：优化配置流程，由于我们一些用户可以自定义的配置，我们会让用户配置，所以配置过程空格里应该有 placeholder 作为参考，不改的将使用 placeholder值
+### Phase 6: 配置custom provider 的 UI需要重构 🚧 **待实现**
+**目标**：设计UI组件，满足需求（参考 qwen-code 项目的填写UI，就是可以在一个界面键盘上下可以填写，一个界面同时显示很多个可填项目，而不是填一个提交了再显示下一个）
+
+**新建 custom provider 配置的步骤**：验证界面选择 custom provider -> 打开 provider 选择页面 -> 选择`Add New Provider...` -> 选择适配器 -> 填写provider相关信息（providername,providerid,baseurl,apike,models,timeout,maxretry）-> 填写 model 相关信息(modelid,context,maxoutput,suppport,feature)，（默认显示一个model的填写区域，设计有个`Add New Model...`点击后增加一组，这样就可以新加模型了） -> 保存（检查providerid和name是否有了，没有则追加为新的 provider）
+
+**编辑已有 custom provider 配置的步骤**：验证界面选择 custom provider -> 打开 provider 选择页面 -> 选择已有配置 -> 选择适配器 -> 加载provider相关信息（providername,providerid,baseurl,apike,models,timeout,maxretry）-> 加载 model 相关信息(modelid,context,maxoutput,suppport,feature)，修改（默认已有model编辑区域，设计有个`Add New Model...`点击后增加一组，这样就可以新加模型了） ->  保存提交，对应id 覆盖
+**用户自定义需要生成的配置文件格式**
+```json
+{
+  "selectedAuthType": "oauth-personal",
+  "currentProvider": "deepseek",
+  "currentModel": "deepseek-chat",
+  "customProviders": {
+    "deepseek": {
+      "id": "deepseek",
+      "name": "DeepSeek",
+      "adapterType": "openai",
+      "baseUrl": "https://api.deepseek.com/v1",
+      "apiKey": "${DEEPSEEK_API_KEY}",
+      "models": ["deepseek-chat", "deepseek-reasoner"],
+      "modelOverrides": {
+        "deepseek-chat": {
+          "contextWindow": 32768,
+          "maxOutputTokens": 4096,
+          "supportedModalities": ["text"],
+          "features": {
+            "streaming": true,
+            "functionCalling": true,
+            "vision": false
+          }
+        },
+        "deepseek-reasoner": {
+          "contextWindow": 32768,
+          "maxOutputTokens": 4096,
+          "supportedModalities": ["text"],
+          "features": {
+            "streaming": true,
+            "functionCalling": true,
+            "vision": false
+          }
+        }
+      },
+      "providerOverrides": {
+        "timeout": 45000,
+        "maxRetries": 3
+      },
+      "createdAt": "2025-01-01T00:00:00Z"
+    },
+    "anthropic": {
+      "id": "anthropic",
+      "name": "Anthropic",
+      "adapterType": "openai",
+      "baseUrl": "https://api.anthropic.com/v1",
+      "apiKey": "${ANTHROPIC_API_KEY}",
+      "models": ["claude-sonnet-4-20250514","claude-opus-4-20250514"],
+      "modelOverrides": {
+        "claude-sonnet-4-20250514": {
+          "contextWindow": 200000,
+          "maxOutputTokens": 64000,
+          "supportedModalities": ["text", "image"],
+          "features": {
+            "streaming": true,
+            "functionCalling": true,
+            "vision": false
+          }
+        },
+        "claude-opus-4-20250514": {
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "supportedModalities": ["text", "image"],
+          "features": {
+            "streaming": true,
+            "functionCalling": true,
+            "vision": false
+          }
+        }
+      },
+      "providerOverrides": {
+        "timeout": 45000,
+        "maxRetries": 3
+      },
+      "createdAt": "2025-01-01T00:00:00Z"
+    }
+  }
+}
+```
 **核心功能**：
 - 参考 qwen-code 项目，配置UI支持键盘导航，具体可参考：/Users/zhaoyu/Downloads/coding/gemini-cli/qwen-code/ 项目，你去找一下组建在哪里
-- 配置后生成在 custom provider 的配置文件内供适配器按字段读取并覆盖
 
 **关键特性**：
-- 基于适配器默认模型的智能推荐
-- 支持模型配置的继承选择
-- 实现配置预览和验证
-- 让用户更容易配置出符合官方模型需求
+- 易填写
+- 易加新模型
 
 ### Phase 7: 聊天界面状态显示 🚧 **待实现**
 **目标**：在聊天界面显示当前使用的 Provider 和 Model 信息
