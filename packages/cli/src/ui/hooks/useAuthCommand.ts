@@ -38,7 +38,18 @@ export const useAuthCommand = (
 
       try {
         setIsAuthenticating(true);
-        await config.refreshAuth(authType);
+        
+        // For custom provider, pass the provider settings
+        if (authType === AuthType.CUSTOM_PROVIDER) {
+          const customProviderSettings = {
+            currentProvider: settings.merged.currentProvider,
+            customProviders: settings.merged.customProviders
+          };
+          await config.refreshAuth(authType, customProviderSettings);
+        } else {
+          await config.refreshAuth(authType);
+        }
+        
         console.log(`Authenticated via "${authType}".`);
       } catch (e) {
         setAuthError(`Failed to login. Message: ${getErrorMessage(e)}`);
