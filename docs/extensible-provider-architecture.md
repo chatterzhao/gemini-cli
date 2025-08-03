@@ -1022,22 +1022,131 @@ async function getAvailableModels(settings: LoadedSettings) {
 - 测试启动 gemini cli，当有 custom provider 配置时，gemini cli 应该直接启动
 - 测试根ai 对话是否能正确对话
 
-### Phase 6: 配置custom provider 的 UI需要重构 🚧 **待实现**
-**目标**：设计UI组件，满足需求（参考 qwen-code 项目的填写UI，就是可以在一个界面键盘上下可以填写，一个界面同时显示很多个可填项目，而不是填一个提交了再显示下一个）
+### Phase 6: Custom Provider 配置 UI 重构  ✅ **已完成**
 
-**新建 custom provider 配置的步骤**：验证界面选择 custom provider -> 打开 provider 选择页面 -> 选择`Add New Provider...` -> 选择适配器 -> 填写provider相关信息（providername,providerid,baseurl,apike,models,timeout,maxretry）-> 填写 model 相关信息(modelid,context,maxoutput,suppport,feature)，（默认显示一个model的填写区域，设计有个`Add New Model...`点击后增加一组，这样就可以新加模型了） -> 保存（检查providerid和name是否有了，没有则追加为新的 provider）
+**设计目标**：重构现有的分步配置流程，实现类似 qwen-code 项目的一体化表单界面，支持键盘导航，在单个界面中同时显示所有配置项，提升用户体验。
 
-**编辑已有 custom provider 配置的步骤**：验证界面选择 custom provider -> 打开 provider 选择页面 -> 选择已有配置 -> 选择适配器 -> 加载provider相关信息（providername,providerid,baseurl,apike,models,timeout,maxretry）-> 加载 model 相关信息(modelid,context,maxoutput,suppport,feature)，修改（默认已有model编辑区域，设计有个`Add New Model...`点击后增加一组，这样就可以新加模型了） ->  保存提交，对应id 覆盖
-**用户自定义需要生成的配置文件格式**
+#### 6.1 UI 设计原则
+
+**参考设计**：基于 qwen-code 项目的 `OpenAIKeyPrompt.tsx` 组件设计理念
+- **一体化界面**：所有配置项在同一界面显示，避免多步骤跳转
+- **键盘友好**：支持 Tab/↑↓ 键导航，Enter 确认，Esc 取消
+- **视觉指示**：使用 `>` 符号标识当前焦点字段，颜色区分活跃/非活跃状态
+- **即时反馈**：字段验证和错误提示实时显示
+
+#### 6.2 配置流程重新设计
+
+**新建 Custom Provider 流程**：
+```
+认证界面选择 Custom Provider 
+    ↓
+Provider 选择页面（列表现有 + "Add New Provider..."）
+    ↓
+一体化配置表单界面：
+├── Provider 基本信息区域
+│   ├── Provider Name *     [> DeepSeek                    ]
+│   ├── Provider ID         [  deepseek (auto-generated)  ]
+│   ├── Adapter Type        [  openai/anthropic          ]
+│   ├── Base URL *          [> https://api.deepseek.com/v1]
+│   └── API Key *           [  ${DEEPSEEK_API_KEY} 引提醒两种，一种直接粘贴 apikey，将保存在 .gemini/settings.json内，可可自己设置环境变量，然后填写美元符号开头:$环境变量名        ]
+├── Provider 设置区域  
+│   ├── Timeout (ms)        [  30000                       ]
+│   └── Max Retries         [  3                           ]
+└── Models 配置区域
+    ├── Model 1:
+    │   ├── Model ID *      [  deepseek-chat               ]
+    │   ├── Context Window  [  32768                       ]
+    │   ├── Max Output      [  4096                        ]
+    │   ├── Modalities      [  text                        ]
+    │   ├── Streaming       [  Yes                         ]
+    │   ├── Function Call   [  Yes                         ]
+    │   └── Vision          [  No                          ]
+    └── [Add New Model...] / [Remove Model]
+
+Tab/↑↓ Navigate • Enter Continue/Toggle • Ctrl+A Add Model • Esc Cancel
+```
+
+**编辑已有 Provider 流程**：
+```
+认证界面选择 Custom Provider 
+    ↓
+Provider 选择页面（选择已有配置）
+    ↓
+一体化配置表单界面（与新增界面一致，只是预填充现有数据）
+    ↓
+修改后保存覆盖
+```
+
+#### 6.3 核心组件重构
+
+**主要组件**：`CustomProviderConfigForm.tsx`（已存在，需重构）
+
+**重构要点**：
+1. **移除分步流程**：将现有的多步骤配置合并为单一表单界面
+2. **键盘导航优化**：参考 qwen-code 的 `useInput` 处理逻辑
+3. **字段管理**：实现动态字段列表，支持模型的添加/删除
+4. **视觉设计**：采用 qwen-code 的视觉风格，包括边框、颜色、焦点指示
+
+**关键实现细节**：
+```typescript
+// 字段导航系统
+type FieldType = 
+  | 'name' | 'id' | 'adapterType' | 'baseUrl' | 'apiKey' 
+  | 'timeout' | 'maxRetries' 
+  | `model-${number}-modelId` | `model-${number}-contextWindow` 
+  | `model-${number}-maxOutputTokens` | `model-${number}-supportedModalities`
+  | `model-${number}-streaming` | `model-${number}-functionCalling` | `model-${number}-vision`;
+
+// 键盘导航处理
+useInput((input, key) => {
+  // Tab/方向键导航
+  if (key.tab || key.downArrow) {
+    const nextIndex = (currentFieldIndex + 1) % allFields.length;
+    setCurrentField(allFields[nextIndex]);
+  }
+  
+  // 特殊操作
+  if (key.ctrl && input === 'a') {
+    addNewModel(); // Ctrl+A 添加新模型
+  }
+  
+  if (key.ctrl && input === 'd') {
+    removeCurrentModel(); // Ctrl+D 删除当前模型
+  }
+});
+
+// 字段渲染
+const renderField = (label: string, field: FieldType, isRequired?: boolean) => (
+  <Box marginTop={1} flexDirection="row">
+    <Box width={20}>
+      <Text color={currentField === field ? Colors.AccentBlue : Colors.Gray}>
+        {label}{isRequired ? ' *' : ''}:
+      </Text>
+    </Box>
+    <Box flexGrow={1}>
+      <Text>
+        {currentField === field ? '> ' : '  '}
+        {getFieldValue(field)}
+        {currentField === field && <Text color={Colors.Gray}>_</Text>}
+      </Text>
+    </Box>
+  </Box>
+);
+```
+
+#### 6.4 配置数据结构
+
+**目标配置格式**（与现有保持一致）：
 ```json
 {
-  "selectedAuthType": "oauth-personal",
+  "selectedAuthType": "custom-provider",
   "currentProvider": "deepseek",
   "currentModel": "deepseek-chat",
   "customProviders": {
     "deepseek": {
       "id": "deepseek",
       "name": "DeepSeek",
+      "displayName": "DeepSeek",
       "adapterType": "openai",
       "baseUrl": "https://api.deepseek.com/v1",
       "apiKey": "${DEEPSEEK_API_KEY}",
@@ -1052,68 +1161,54 @@ async function getAvailableModels(settings: LoadedSettings) {
             "functionCalling": true,
             "vision": false
           }
-        },
-        "deepseek-reasoner": {
-          "contextWindow": 32768,
-          "maxOutputTokens": 4096,
-          "supportedModalities": ["text"],
-          "features": {
-            "streaming": true,
-            "functionCalling": true,
-            "vision": false
-          }
         }
       },
       "providerOverrides": {
-        "timeout": 45000,
+        "timeout": 30000,
         "maxRetries": 3
       },
-      "createdAt": "2025-01-01T00:00:00Z"
-    },
-    "anthropic": {
-      "id": "anthropic",
-      "name": "Anthropic",
-      "adapterType": "openai",
-      "baseUrl": "https://api.anthropic.com/v1",
-      "apiKey": "${ANTHROPIC_API_KEY}",
-      "models": ["claude-sonnet-4-20250514","claude-opus-4-20250514"],
-      "modelOverrides": {
-        "claude-sonnet-4-20250514": {
-          "contextWindow": 200000,
-          "maxOutputTokens": 64000,
-          "supportedModalities": ["text", "image"],
-          "features": {
-            "streaming": true,
-            "functionCalling": true,
-            "vision": false
-          }
-        },
-        "claude-opus-4-20250514": {
-          "contextWindow": 200000,
-          "maxOutputTokens": 32000,
-          "supportedModalities": ["text", "image"],
-          "features": {
-            "streaming": true,
-            "functionCalling": true,
-            "vision": false
-          }
-        }
-      },
-      "providerOverrides": {
-        "timeout": 45000,
-        "maxRetries": 3
-      },
-      "createdAt": "2025-01-01T00:00:00Z"
+      "createdAt": "2025-01-01T00:00:00Z",
+      "updatedAt": "2025-01-01T00:00:00Z"
     }
   }
 }
 ```
-**核心功能**：
-- 参考 qwen-code 项目，配置UI支持键盘导航，具体可参考：/Users/zhaoyu/Downloads/coding/gemini-cli/qwen-code/ 项目，你去找一下组建在哪里
 
-**关键特性**：
-- 易填写
-- 易加新模型
+#### 6.5 用户体验优化
+
+**易用性特性**：
+1. **智能默认值**：customProviders下的provider 对象名默认与Provider ID一致， 自动从名称生成provider id，控制一些常见不允许的字符，新增配置的场景，需要填写的空显示灰色 placeholer
+2. **实时验证**：必填字段检查，URL 格式验证，API Key 格式提示
+3. **错误处理**：清晰的错误信息，对应输入框变红色和修复建议
+
+**视觉设计**：
+- 使用边框和颜色区分不同配置区域
+- 当前焦点字段高亮显示（蓝色）
+- 必填字段标记 `*` 
+- 长文本字段支持自动换行，高度自适应
+
+#### 6.6 实现优先级
+
+**Phase 6.1**：重构 `CustomProviderConfigForm.tsx`
+- 实现一体化表单界面
+- 完善键盘导航系统
+- 添加模型动态管理功能
+
+**Phase 6.2**：用户体验优化
+- 添加字段验证和错误处理
+- 优化视觉设计和布局
+
+**Phase 6.3**：测试和完善
+- 全面测试键盘导航
+- 验证配置数据正确性
+- 优化性能和响应速度
+
+**成功标准**：
+- ✅ 用户可以在单一界面完成所有配置
+- ✅ 键盘导航流畅，无需鼠标操作
+- ✅ 支持多模型配置和动态添加/删除
+- ✅ 新增和编辑已有配置数据格式正确
+- ✅ 视觉设计清晰，用户体验良好
 
 ### Phase 7: 聊天界面状态显示 🚧 **待实现**
 **目标**：在聊天界面显示当前使用的 Provider 和 Model 信息

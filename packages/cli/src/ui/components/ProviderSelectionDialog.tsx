@@ -14,6 +14,7 @@ interface ProviderOption {
   type: 'existing' | 'add_new';
   label: string;
   provider?: CustomProviderConfig;
+  adapterType?: 'openai' | 'anthropic';
 }
 
 interface ProviderSelectionDialogProps {
@@ -37,12 +38,12 @@ export function ProviderSelectionDialog({
   return (
     <Box
       borderStyle="round"
-      borderColor={Colors.Gray}
+      borderColor={Colors.AccentBlue}
       flexDirection="column"
       padding={1}
       width="100%"
     >
-      <Text bold>{title}</Text>
+      <Text bold color={Colors.AccentBlue}>{title}</Text>
       
       <Box marginTop={1}>
         <RadioButtonSelect
@@ -61,7 +62,7 @@ export function ProviderSelectionDialog({
 
       <Box marginTop={1}>
         <Text color={Colors.Gray}>
-          Use ↑↓ Navigate • Enter Select • Esc Cancel
+          ↑↓ Navigate • Enter Select • Esc Cancel
         </Text>
       </Box>
     </Box>

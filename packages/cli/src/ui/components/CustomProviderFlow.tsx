@@ -10,27 +10,48 @@ import { Colors } from '../colors.js';
 import { LoadedSettings, SettingScope, CustomProviderConfig } from '../../config/settings.js';
 import { AuthType } from '@google/gemini-cli-core';
 import { ProviderSelectionDialog } from './ProviderSelectionDialog.js';
-import { ProviderConfigSteps } from './ProviderConfigSteps.js';
+import { CustomProviderConfigForm } from './CustomProviderConfigForm.js';
 
 interface CustomProviderFlowProps {
   settings: LoadedSettings;
   onComplete: (providerConfig: CustomProviderConfig) => void;
   onCancel: () => void;
+  onDelete?: (providerId: string) => void;
+  onModelUpdate?: (providerConfig: CustomProviderConfig) => void;
 }
 
-type FlowStep = 'list' | 'adapter' | 'name' | 'baseurl' | 'apikey' | 'models';
+type FlowStep = 'list' | 'adapter_selection' | 'config';
 
 export function CustomProviderFlow({ 
   settings, 
   onComplete, 
-  onCancel 
+  onCancel,
+  onDelete,
+  onModelUpdate
 }: CustomProviderFlowProps): React.JSX.Element {
   const [step, setStep] = useState<FlowStep>('list');
-  const [config, setConfig] = useState<Partial<CustomProviderConfig>>({});
+  const [selectedProvider, setSelectedProvider] = useState<CustomProviderConfig | null>(null);
+  const [selectedAdapterType, setSelectedAdapterType] = useState<'openai' | 'anthropic' | undefined>(undefined);
 
   useInput((_input, key) => {
     if (key.escape) {
-      onCancel();
+      if (step === 'config') {
+        // 从配置界面返回适配器选择或列表
+        if (selectedProvider) {
+          // 编辑模式：返回列表
+          setStep('list');
+          setSelectedProvider(null);
+        } else {
+          // 新建模式：返回适配器选择
+          setStep('adapter_selection');
+        }
+      } else if (step === 'adapter_selection') {
+        // 从适配器选择返回列表
+        setStep('list');
+      } else {
+        // 从列表界面取消
+        onCancel();
+      }
     }
   });
 
@@ -48,15 +69,18 @@ export function CustomProviderFlow({
 
     return (
       <ProviderSelectionDialog
+        key="provider-list"
         title="Select Custom Provider"
         options={options}
         onSelect={(option) => {
           if (option.type === 'existing' && option.provider) {
-            // 选择现有provider，直接完成
-            onComplete(option.provider);
+            // 选择现有provider进入编辑模式
+            setSelectedProvider(option.provider);
+            setStep('config');
           } else {
-            // 开始新建provider流程
-            setStep('adapter');
+            // 开始新建provider流程：先选择适配器
+            setSelectedProvider(null);
+            setStep('adapter_selection');
           }
         }}
         onCancel={onCancel}
@@ -64,50 +88,57 @@ export function CustomProviderFlow({
     );
   }
 
-  // 步骤2-6: 分步配置新provider
+  // 步骤2: 适配器选择
+  if (step === 'adapter_selection') {
+    const adapterOptions = [
+      { type: 'openai' as const, label: 'OpenAI Compatible (ChatGPT, DeepSeek, etc.)' },
+      { type: 'anthropic' as const, label: 'Anthropic Compatible (Claude)' }
+    ];
+
+    return (
+      <ProviderSelectionDialog
+        key="adapter-selection"
+        title="Select Adapter Type"
+        options={adapterOptions.map(opt => ({
+          type: 'add_new' as const,
+          label: opt.label,
+          adapterType: opt.type
+        }))}
+        onSelect={(option) => {
+          setSelectedAdapterType((option as any).adapterType);
+          setStep('config');
+        }}
+        onCancel={() => setStep('list')}
+      />
+    );
+  }
+
+  // 步骤3: 一体化配置表单
   return (
-    <ProviderConfigSteps
-      step={step}
-      config={config}
-      onStepComplete={(stepData) => {
-        const updatedConfig = { ...config, ...stepData };
-        setConfig(updatedConfig);
-        
-        // 步骤流程控制
-        const stepFlow: Record<FlowStep, FlowStep | 'complete'> = {
-          'list': 'adapter',
-          'adapter': 'name',
-          'name': 'baseurl',
-          'baseurl': 'apikey', 
-          'apikey': 'models',
-          'models': 'complete'
-        };
-        
-        if (stepFlow[step] === 'complete') {
-          // 生成唯一 ID 并完成配置
-          const finalConfig: CustomProviderConfig = {
-            ...updatedConfig,
-            id: generateProviderId(updatedConfig.name!),
-            createdAt: new Date().toISOString(),
-          } as CustomProviderConfig;
-          
-          onComplete(finalConfig);
+    <CustomProviderConfigForm
+      initialConfig={selectedProvider || undefined}
+      selectedAdapterType={selectedProvider ? undefined : selectedAdapterType}
+      onComplete={onComplete}
+      onCancel={() => {
+        if (selectedProvider) {
+          // 编辑模式：返回列表
+          setStep('list');
+          setSelectedProvider(null);
         } else {
-          setStep(stepFlow[step] as FlowStep);
+          // 新建模式：返回适配器选择
+          setStep('adapter_selection');
         }
       }}
-      onBack={() => {
-        const backFlow: Record<FlowStep, FlowStep> = {
-          'list': 'list',
-          'adapter': 'list',
-          'name': 'adapter',
-          'baseurl': 'name',
-          'apikey': 'baseurl',
-          'models': 'apikey'
-        };
-        setStep(backFlow[step]);
+      onDelete={(config) => {
+        // 删除provider
+        if (onDelete && config.id) {
+          onDelete(config.id);
+        }
+        // 删除后返回列表
+        setStep('list');
+        setSelectedProvider(null);
       }}
-      onCancel={onCancel}
+      onModelUpdate={onModelUpdate}
     />
   );
 }

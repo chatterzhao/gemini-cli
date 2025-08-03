@@ -160,6 +160,32 @@ export function AuthDialog({
           setShowCustomProviderFlow(false);
         }}
         onCancel={() => setShowCustomProviderFlow(false)}
+        onDelete={(providerId) => {
+          // 删除 provider
+          const newCustomProviders = { ...settings.merged.customProviders };
+          delete newCustomProviders[providerId];
+          settings.setValue(SettingScope.User, 'customProviders', newCustomProviders);
+          
+          // 如果删除的是当前选中的 provider，则清除相关设置
+          if (settings.merged.currentProvider === providerId) {
+            settings.setValue(SettingScope.User, 'currentProvider', undefined);
+            settings.setValue(SettingScope.User, 'currentModel', undefined);
+          }
+          
+          setShowCustomProviderFlow(false);
+        }}
+        onModelUpdate={(providerConfig) => {
+          // 更新模型配置
+          settings.setValue(SettingScope.User, 'customProviders', {
+            ...settings.merged.customProviders,
+            [providerConfig.id]: providerConfig
+          });
+          
+          // 如果更新的是当前选中的 provider，则更新当前模型列表
+          if (settings.merged.currentProvider === providerConfig.id) {
+            settings.setValue(SettingScope.User, 'currentModel', providerConfig.models[0]);
+          }
+        }}
       />
     );
   }
