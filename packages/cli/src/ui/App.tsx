@@ -39,8 +39,8 @@ import { EditorSettingsDialog } from './components/EditorSettingsDialog.js';
 import { ShellConfirmationDialog } from './components/ShellConfirmationDialog.js';
 import { Colors } from './colors.js';
 import { Help } from './components/Help.js';
+import { ModelSelectionDialog } from './components/ModelSelectionDialog.js';
 import { loadHierarchicalGeminiMemory } from '../config/config.js';
-import { LoadedSettings } from '../config/settings.js';
 import { Tips } from './components/Tips.js';
 import { ConsolePatcher } from './utils/ConsolePatcher.js';
 import { registerCleanup } from '../utils/cleanup.js';
@@ -90,6 +90,7 @@ import { ShowMoreLines } from './components/ShowMoreLines.js';
 import { PrivacyNotice } from './privacy/PrivacyNotice.js';
 import { setUpdateHandler } from '../utils/handleAutoUpdate.js';
 import { appEvents, AppEvent } from '../utils/events.js';
+import { LoadedSettings, SettingScope } from '../config/settings.js';
 
 const CTRL_EXIT_PROMPT_DURATION_MS = 1000;
 
@@ -168,6 +169,7 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
   const ctrlDTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [constrainHeight, setConstrainHeight] = useState<boolean>(true);
   const [showPrivacyNotice, setShowPrivacyNotice] = useState<boolean>(false);
+  const [isModelDialogOpen, setIsModelDialogOpen] = useState<boolean>(false); // 添加模型对话框状态
   const [modelSwitchedFromQuotaError, setModelSwitchedFromQuotaError] =
     useState<boolean>(false);
   const [userTier, setUserTier] = useState<UserTierId | undefined>(undefined);
@@ -208,6 +210,15 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
   const openPrivacyNotice = useCallback(() => {
     setShowPrivacyNotice(true);
   }, []);
+
+  const openModelDialog = useCallback(() => {
+    setIsModelDialogOpen(true);
+  }, []);
+
+  const closeModelDialog = useCallback(() => {
+    setIsModelDialogOpen(false);
+  }, []);
+
   const initialPromptSubmitted = useRef(false);
 
   const errorCount = useMemo(
@@ -476,6 +487,7 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
     toggleCorgiMode,
     setQuittingMessages,
     openPrivacyNotice,
+    openModelDialog,
     toggleVimEnabled,
     setIsProcessing,
   );
@@ -529,6 +541,47 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
   const { elapsedTime, currentLoadingPhrase } =
     useLoadingIndicator(streamingState);
   const showAutoAcceptIndicator = useAutoAcceptIndicator({ config });
+
+  // 处理模型选择
+  const handleModelSelect = useCallback(
+    async (providerId: string, modelId: string) => {
+      try {
+        // 更新设置
+        settings.setValue(SettingScope.User, 'currentProvider', providerId);
+        settings.setValue(SettingScope.User, 'currentModel', modelId);
+        
+        // 刷新配置以反映新的模型选择
+        await config.refreshAuth(settings.merged.selectedAuthType as AuthType, {
+          currentProvider: providerId,
+          customProviders: settings.merged.customProviders
+        });
+        
+        // 关闭对话框
+        closeModelDialog();
+        
+        // 显示确认消息
+        addItem(
+          {
+            type: MessageType.INFO,
+            text: `Switched to model: ${modelId} with provider: ${providerId}`,
+          },
+          Date.now(),
+        );
+        
+        // 触发界面刷新
+        refreshStatic();
+      } catch (error) {
+        addItem(
+          {
+            type: MessageType.ERROR,
+            text: `Failed to switch model: ${error instanceof Error ? error.message : String(error)}`,
+          },
+          Date.now(),
+        );
+      }
+    },
+    [settings, closeModelDialog, addItem, refreshStatic],
+  );
 
   const handleExit = useCallback(
     (
@@ -909,6 +962,14 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
                 onSelect={handleEditorSelect}
                 settings={settings}
                 onExit={exitEditorDialog}
+              />
+            </Box>
+          ) : isModelDialogOpen ? (
+            <Box flexDirection="column">
+              <ModelSelectionDialog
+                settings={settings}
+                onModelSelect={handleModelSelect}
+                onCancel={closeModelDialog}
               />
             </Box>
           ) : showPrivacyNotice ? (

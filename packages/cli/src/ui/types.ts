@@ -239,3 +239,19 @@ export type SlashCommandProcessorResult =
       type: 'handled'; // Indicates the command was processed and no further action is needed.
     }
   | SubmitPromptResult;
+
+/**
+ * 定义对话框的类型。
+ * `model` 类型用于表示模型相关的对话框。
+ */
+/**
+ * 定义对话框的类型。
+ * `model` 类型用于表示模型相关的对话框。
+ */
+export type DialogType =
+  | 'help'
+  | 'theme'
+  | 'auth'
+  | 'editor'
+  | 'privacy'
+  | 'model'; // Add model dialog type

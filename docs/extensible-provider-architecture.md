@@ -1211,21 +1211,36 @@ const renderField = (label: string, field: FieldType, isRequired?: boolean) => (
 - ✅ 视觉设计清晰，用户体验良好
 
 ### Phase 7: 聊天界面状态显示 🚧 **待实现**
-**目标**：在聊天界面显示当前使用的 Provider 和 Model 信息
+**目标**：修改聊天界面输入框下方现在显示model的位置，显示 provider/model这样的信息
 **核心功能**：
 - 轻量级状态显示组件
 - 实时获取当前 Provider 和 Model 信息
-- 清晰直观的显示格式
+- 清晰直观的显示格式(当前已经显示model信息了，需要拼接上porvider 信息，建议 xx/yy 这样)
 
-### Phase 8: /model 命令支持 🚧 **待实现** 
-**目标**：支持切换已经配置好的模型
+**详细实现说明**：
+1. **状态显示组件**
+   - 创建了一个轻量级的状态显示组件，用于显示当前Provider和Model信息
+   - 组件简洁明了，不干扰正常的聊天体验
+   - 显示格式采用 "provider/model" 格式，例如："deepseek/deepseek-chat"
+
+2. **信息获取逻辑**
+   - 从settings配置中获取currentProvider和currentModel值
+   - 如果是自定义Provider，显示Provideid
+   - 如果是内置Provider（Google），显示相应信息
+
+3. **显示位置**
+   - 在聊天界面的输入框下方现有显示model的位置显示
+
+### Phase 8: /model 命令支持  ✅ **已完成**
+**目标**：支持切换已经配置好的自定义模型
 **核心功能**：
 - **/model 命令实现** - 跨 Provider 模型切换功能
-- **模型选择对话框** - 统一的模型选择界面
+- **模型选择对话框** - 统一的模型选择界面，似乎应该复用类似 provider 选择的那个选项组件
 
 **关键特性**：
 - 直观的模型选择界面，显示 Provider 和模型信息
 - 方向键可选择，回车确认，确认后回到聊天界面，显示切换后的最新 provider 和 model信息
+- 修改后更新 ～/.gemini/settings.json 文件的 "currentProvider": "deepseek","currentModel": "deepseek-chat" 这两个字段的值。更新方法可以参考 custom provider 的实现
 
 
 ## Git分支管理策略与开发TODO

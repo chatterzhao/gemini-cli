@@ -59,6 +59,8 @@ export interface CommandContext {
     /** Toggles a special display mode. */
     toggleCorgiMode: () => void;
     toggleVimEnabled: () => Promise<boolean>;
+    /** Opens the model selection dialog */
+    openModelDialog: () => void;
   };
   // Session-specific data
   session: {
@@ -96,10 +98,10 @@ export interface MessageActionReturn {
 /**
  * The return type for a command action that needs to open a dialog.
  */
-export interface OpenDialogActionReturn {
+export type OpenDialogActionReturn = {
   type: 'dialog';
-  dialog: 'help' | 'auth' | 'theme' | 'editor' | 'privacy';
-}
+  dialog: 'help' | 'theme' | 'auth' | 'editor' | 'privacy' | 'model';
+};
 
 /**
  * The return type for a command action that results in replacing

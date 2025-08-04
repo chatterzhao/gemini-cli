@@ -50,6 +50,7 @@ export const useSlashCommandProcessor = (
   toggleCorgiMode: () => void,
   setQuittingMessages: (message: HistoryItem[]) => void,
   openPrivacyNotice: () => void,
+  openModelDialog: () => void, // 添加model对话框打开函数
   toggleVimEnabled: () => Promise<boolean>,
   setIsProcessing: (isProcessing: boolean) => void,
 ) => {
@@ -160,6 +161,7 @@ export const useSlashCommandProcessor = (
         setPendingItem: setPendingCompressionItem,
         toggleCorgiMode,
         toggleVimEnabled,
+        openModelDialog,
       },
       session: {
         stats: session.stats,
@@ -182,6 +184,7 @@ export const useSlashCommandProcessor = (
       toggleCorgiMode,
       toggleVimEnabled,
       sessionShellAllowlist,
+      openModelDialog,
     ],
   );
 
@@ -347,6 +350,9 @@ export const useSlashCommandProcessor = (
                       return { type: 'handled' };
                     case 'privacy':
                       openPrivacyNotice();
+                      return { type: 'handled' };
+                    case 'model': // 添加model对话框处理
+                      openModelDialog();
                       return { type: 'handled' };
                     default: {
                       const unhandled: never = result.dialog;
