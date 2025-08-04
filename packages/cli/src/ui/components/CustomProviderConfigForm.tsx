@@ -655,6 +655,13 @@ export function CustomProviderConfigForm({
       <Box>
         <Text bold>Models Configuration</Text>
       </Box>
+      
+      <Box marginBottom={1}>
+        <Text color={Colors.Gray}>
+          Note: The first model will be set as the default model for this provider. 
+          To switch between models, please use the /model command in the chat interface.
+        </Text>
+      </Box>
 
       {formData.models.map((_, index) => (
         <Box key={index} flexDirection="column" paddingLeft={2}>
