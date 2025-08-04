@@ -435,6 +435,48 @@ export function CustomProviderConfigForm({
       return;
     }
 
+    // 处理退格和删除键
+    if (key.backspace || key.delete) {
+      const newValue = inputValue.slice(0, -1);
+      setInputValue(newValue);
+      setFieldValue(currentField, newValue);
+
+      // 清除错误
+      if (errors[currentField]) {
+        setErrors(prev => ({ ...prev, [currentField]: '' }));
+      }
+      return;
+    }
+
+    // 过滤粘贴相关的控制序列
+    let cleanInput = (input || '')
+      // 过滤 ESC 开头的控制序列（如 \u001b[200~、\u001b[201~ 等）
+      .replace(/\u001b\[[0-9;]*[a-zA-Z]/g, '') // eslint-disable-line no-control-regex
+      // 过滤粘贴开始标记 [200~
+      .replace(/\[200~/g, '')
+      // 过滤粘贴结束标记 [201~
+      .replace(/\[201~/g, '')
+      // 过滤单独的 [ 和 ~ 字符（可能是粘贴标记的残留）
+      .replace(/^\[|~$/g, '');
+
+    // 再过滤所有不可见字符（ASCII < 32，除了回车换行）
+    cleanInput = cleanInput
+      .split('')
+      .filter((ch) => ch.charCodeAt(0) >= 32)
+      .join('');
+
+    if (cleanInput.length > 0) {
+      const newValue = inputValue + cleanInput;
+      setInputValue(newValue);
+      setFieldValue(currentField, newValue);
+
+      // 清除错误
+      if (errors[currentField]) {
+        setErrors(prev => ({ ...prev, [currentField]: '' }));
+      }
+      return;
+    }
+
     const allFields = getAllFields();
     const currentIndex = allFields.indexOf(currentField);
 
@@ -512,34 +554,6 @@ export function CustomProviderConfigForm({
       // 提交表单
       handleSubmit();
       return;
-    }
-
-
-
-    // 处理输入
-    if (key.backspace || key.delete) {
-      const newValue = inputValue.slice(0, -1);
-      setInputValue(newValue);
-      setFieldValue(currentField, newValue);
-
-      // 清除错误
-      if (errors[currentField]) {
-        setErrors(prev => ({ ...prev, [currentField]: '' }));
-      }
-    } else if (input && !key.meta && !key.ctrl) {
-      // 过滤终端控制序列和非打印字符
-      if (input.startsWith('[') || input.match(/[\x00-\x1F\x7F-\x9F]/)) {
-        return; // 忽略控制序列
-      }
-
-      const newValue = inputValue + input;
-      setInputValue(newValue);
-      setFieldValue(currentField, newValue);
-
-      // 清除错误
-      if (errors[currentField]) {
-        setErrors(prev => ({ ...prev, [currentField]: '' }));
-      }
     }
   });
 
