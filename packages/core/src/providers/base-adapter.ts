@@ -137,14 +137,30 @@ export abstract class BaseAdapter implements ContentGenerator {
    * 加载适配器JSON配置
    */
   private loadAdapterConfig(adapterType: string): AdapterConfig {
-    const configPath = path.join(__dirname, 'adapters', adapterType, 'config.json');
-    
-    try {
-      const configData = fs.readFileSync(configPath, 'utf-8');
-      return JSON.parse(configData) as AdapterConfig;
-    } catch (error) {
-      throw new Error(`Failed to load adapter config for '${adapterType}': ${error}`);
+    // 首先尝试从标准安装位置加载配置文件
+    const possiblePaths = [
+      // 打包安装后的位置
+      path.join(__dirname, '..', 'adapters', adapterType, 'config.json'),
+      // 开发环境位置
+      path.join(__dirname, 'adapters', adapterType, 'config.json'),
+      // 作为后备，尝试从当前工作目录的相对路径
+      path.join(process.cwd(), 'adapters', adapterType, 'config.json')
+    ];
+
+    for (const configPath of possiblePaths) {
+      try {
+        if (fs.existsSync(configPath)) {
+          const configData = fs.readFileSync(configPath, 'utf-8');
+          return JSON.parse(configData) as AdapterConfig;
+        }
+      } catch (error) {
+        // 继续尝试下一个路径
+        continue;
+      }
     }
+    
+    // 如果所有路径都失败了，抛出详细错误信息
+    throw new Error(`Failed to load adapter config for '${adapterType}'. Searched paths: ${possiblePaths.join(', ')}`);
   }
 
   /**
