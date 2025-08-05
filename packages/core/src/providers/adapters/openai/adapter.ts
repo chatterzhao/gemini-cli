@@ -15,14 +15,54 @@ import {
   Part,
   Candidate,
   FinishReason,
+  Tool,
+  ToolListUnion,
+  CallableTool,
+  FunctionCall,
+  FunctionResponse,
 } from '@google/genai';
 import { BaseAdapter, UserProviderConfig } from '../../base-adapter.js';
+
+// OpenAI API type definitions for tool calling
+interface OpenAIToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
+interface OpenAIMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | null;
+  tool_calls?: OpenAIToolCall[];
+  tool_call_id?: string;
+}
+
+interface OpenAITool {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters?: Record<string, unknown>;
+  };
+}
 
 /**
  * OpenAI API 适配器
  * 完全基于JSON配置，专注于格式转换
  */
 export class OpenAIAdapter extends BaseAdapter {
+  private streamingToolCalls: Map<
+    number,
+    {
+      id?: string;
+      name?: string;
+      arguments: string;
+    }
+  > = new Map();
+
   constructor(userConfig: UserProviderConfig) {
     super(userConfig);
   }
@@ -72,7 +112,7 @@ export class OpenAIAdapter extends BaseAdapter {
         modifiedRequest = this.modifyRequestForJsonResponse(request);
       }
       
-      const apiRequest = this.buildApiRequest(modifiedRequest);
+      const apiRequest = await this.buildApiRequest(modifiedRequest);
       
       const response = await fetch(this.getEndpointUrl('chat'), {
         method: 'POST',
@@ -159,7 +199,7 @@ export class OpenAIAdapter extends BaseAdapter {
     const startTime = Date.now();
     try {
       const apiRequest = {
-        ...this.buildApiRequest(request),
+        ...(await this.buildApiRequest(request)),
         stream: true,
       };
 
@@ -209,7 +249,7 @@ export class OpenAIAdapter extends BaseAdapter {
     if (this.adapterConfig.tokenCounting.method === 'response_usage') {
       try {
         // 构建一个最小的请求，只用于token计数
-        const apiRequest = this.buildApiRequest(request);
+        const apiRequest = await this.buildApiRequest(request);
         const response = await fetch(this.getEndpointUrl('chat'), {
           method: 'POST',
           headers: this.getRequestHeaders(),
@@ -278,7 +318,7 @@ export class OpenAIAdapter extends BaseAdapter {
   /**
    * 构建API请求
    */
-  private buildApiRequest(request: GenerateContentParameters): any {
+  private async buildApiRequest(request: GenerateContentParameters): Promise<any> {
     const messages = this.convertContentsToMessages(request.contents);
     
     // 添加系统指令（如果存在）
@@ -323,17 +363,24 @@ export class OpenAIAdapter extends BaseAdapter {
       mappedParams.response_format = (request.config as any).response_format;
     }
 
-    return {
+    const apiRequest: any = {
       model: request.model,
       messages,
       ...mappedParams,
     };
+
+    // 添加工具支持
+    if (request.config?.tools) {
+      apiRequest.tools = await this.convertGeminiToolsToOpenAI(request.config.tools);
+    }
+
+    return apiRequest;
   }
 
   /**
-   * 转换内容为消息格式
+   * 转换内容为消息格式，支持工具调用和工具响应
    */
-  private convertContentsToMessages(contents: any): any[] {
+  private convertContentsToMessages(contents: any): OpenAIMessage[] {
     if (typeof contents === 'string') {
       return [{ role: 'user', content: contents }];
     }
@@ -343,39 +390,91 @@ export class OpenAIAdapter extends BaseAdapter {
       return [{ role: 'user', content: text }];
     }
 
-    return (contents as Content[]).map(content => {
-      // 处理多模态内容
-      if (content.parts && content.parts.length === 1 && content.parts[0].text) {
-        return {
-          role: content.role === 'model' ? 'assistant' : content.role,
-          content: content.parts[0].text,
-        };
-      }
+    const messages: OpenAIMessage[] = [];
 
-      // 多模态内容
-      const messageContent: any[] = [];
-      if (content.parts) {
-        for (const part of content.parts) {
-          if (part.text) {
-            messageContent.push({ type: 'text', text: part.text });
-          } else if (part.inlineData && this.getSupportedModalities('text').includes('image')) {
-            messageContent.push({
-              type: 'image_url',
-              image_url: {
-                url: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`,
-              },
-            });
-          }
+    for (const content of contents as Content[]) {
+      if (!content.parts) continue;
+
+      // 分析消息部分
+      const functionCalls: FunctionCall[] = [];
+      const functionResponses: FunctionResponse[] = [];
+      const textParts: string[] = [];
+      const imageParts: any[] = [];
+
+      for (const part of content.parts) {
+        if (typeof part === 'string') {
+          textParts.push(part);
+        } else if ('text' in part && part.text) {
+          textParts.push(part.text);
+        } else if ('functionCall' in part && part.functionCall) {
+          functionCalls.push(part.functionCall);
+        } else if ('functionResponse' in part && part.functionResponse) {
+          functionResponses.push(part.functionResponse);
+        } else if ('inlineData' in part && part.inlineData && this.getSupportedModalities('text').includes('image')) {
+          imageParts.push({
+            type: 'image_url',
+            image_url: {
+              url: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`,
+            },
+          });
         }
       }
 
-      return {
-        role: content.role === 'model' ? 'assistant' : content.role,
-        content: messageContent.length === 1 && messageContent[0].type === 'text' 
-          ? messageContent[0].text 
-          : messageContent,
-      };
-    });
+      // 处理工具响应（tool results）
+      if (functionResponses.length > 0) {
+        for (const funcResponse of functionResponses) {
+          messages.push({
+            role: 'tool',
+            tool_call_id: funcResponse.id || '',
+            content: typeof funcResponse.response === 'string'
+              ? funcResponse.response
+              : JSON.stringify(funcResponse.response),
+          });
+        }
+      }
+      // 处理模型消息（包含工具调用）
+      else if (content.role === 'model' && functionCalls.length > 0) {
+        const toolCalls = functionCalls.map((fc, index) => ({
+          id: fc.id || `call_${index}`,
+          type: 'function' as const,
+          function: {
+            name: fc.name || '',
+            arguments: JSON.stringify(fc.args || {}),
+          },
+        }));
+
+        messages.push({
+          role: 'assistant',
+          content: textParts.join('\n') || null,
+          tool_calls: toolCalls,
+        });
+      }
+      // 处理常规文本消息
+      else {
+        const role = content.role === 'model' ? 'assistant' : 'user';
+        
+        // 如果有图片，创建多模态消息
+        if (imageParts.length > 0) {
+          const messageContent: any[] = [];
+          if (textParts.length > 0) {
+            messageContent.push({ type: 'text', text: textParts.join('\n') });
+          }
+          messageContent.push(...imageParts);
+          
+          messages.push({
+            role,
+            content: JSON.stringify(messageContent), // OpenAI 期望字符串格式
+          });
+        } else {
+          const text = textParts.join('\n');
+          if (text) {
+            messages.push({ role, content: text });
+          }
+        }
+      }
+    }
+
+    return messages;
   }
   
   /**
@@ -389,7 +488,7 @@ export class OpenAIAdapter extends BaseAdapter {
   }
 
   /**
-   * 转换API响应为Gemini格式
+   * 转换API响应为Gemini格式，支持工具调用
    */
   private convertToGeminiResponse(response: any): GenerateContentResponse {
     // 处理错误响应
@@ -402,15 +501,43 @@ export class OpenAIAdapter extends BaseAdapter {
     // 处理选择项
     if (response.choices && response.choices.length > 0) {
       for (const choice of response.choices) {
+        const parts: Part[] = [];
+
+        // 处理文本内容
+        if (choice.message?.content) {
+          parts.push({ text: choice.message.content });
+        }
+
+        // 处理工具调用
+        if (choice.message?.tool_calls) {
+          for (const toolCall of choice.message.tool_calls) {
+            if (toolCall.function) {
+              let args: Record<string, unknown> = {};
+              if (toolCall.function.arguments) {
+                try {
+                  args = JSON.parse(toolCall.function.arguments);
+                } catch (error) {
+                  console.error('Failed to parse function arguments:', error);
+                  args = {};
+                }
+              }
+
+              parts.push({
+                functionCall: {
+                  id: toolCall.id,
+                  name: toolCall.function.name,
+                  args,
+                },
+              });
+            }
+          }
+        }
+
         const candidate: Candidate = {
           index: choice.index || 0,
           content: {
             role: 'model',
-            parts: [
-              {
-                text: choice.message?.content || choice.delta?.content || '',
-              },
-            ],
+            parts,
           },
           finishReason: this.convertFinishReason(choice.finish_reason),
         };
@@ -455,7 +582,7 @@ export class OpenAIAdapter extends BaseAdapter {
   }
 
   /**
-   * 解析流式响应
+   * 解析流式响应，支持工具调用
    */
   private async* parseStreamResponse(
     response: Response,
@@ -465,6 +592,9 @@ export class OpenAIAdapter extends BaseAdapter {
 
     const decoder = new TextDecoder();
     let buffer = '';
+
+    // 重置流式工具调用累积器
+    this.streamingToolCalls.clear();
 
     try {
       while (true) {
@@ -482,21 +612,7 @@ export class OpenAIAdapter extends BaseAdapter {
 
             try {
               const parsed = JSON.parse(data);
-              const choice = parsed.choices[0];
-              
-              if (choice.delta?.content) {
-                yield {
-                  candidates: [{
-                    content: {
-                      parts: [{ text: choice.delta.content }],
-                      role: 'model',
-                    },
-                    finishReason: choice.finish_reason ? 
-                      this.convertFinishReason(choice.finish_reason) : undefined,
-                    index: choice.index,
-                  }],
-                } as GenerateContentResponse;
-              }
+              yield this.convertStreamChunkToGeminiFormat(parsed);
             } catch (error) {
               console.warn('Failed to parse streaming response:', error);
             }
@@ -506,6 +622,98 @@ export class OpenAIAdapter extends BaseAdapter {
     } finally {
       reader.releaseLock();
     }
+  }
+
+  /**
+   * 转换流式响应块为 Gemini 格式，支持工具调用
+   */
+  private convertStreamChunkToGeminiFormat(chunk: any): GenerateContentResponse {
+    const choice = chunk.choices?.[0];
+    const parts: Part[] = [];
+
+    if (choice) {
+      // 处理文本内容
+      if (choice.delta?.content) {
+        parts.push({ text: choice.delta.content });
+      }
+
+      // 处理工具调用 - 只在流式传输期间累积，在完成时发出
+      if (choice.delta?.tool_calls) {
+        for (const toolCall of choice.delta.tool_calls) {
+          const index = toolCall.index ?? 0;
+
+          // 获取或创建此索引的工具调用累积器
+          let accumulatedCall = this.streamingToolCalls.get(index);
+          if (!accumulatedCall) {
+            accumulatedCall = { arguments: '' };
+            this.streamingToolCalls.set(index, accumulatedCall);
+          }
+
+          // 更新累积数据
+          if (toolCall.id) {
+            accumulatedCall.id = toolCall.id;
+          }
+          if (toolCall.function?.name) {
+            accumulatedCall.name = toolCall.function.name;
+          }
+          if (toolCall.function?.arguments) {
+            accumulatedCall.arguments += toolCall.function.arguments;
+          }
+        }
+      }
+
+      // 只在流式传输完成时发出函数调用（存在 finish_reason）
+      if (choice.finish_reason) {
+        for (const [, accumulatedCall] of this.streamingToolCalls) {
+          if (accumulatedCall.name) {
+            let args: Record<string, unknown> = {};
+            if (accumulatedCall.arguments) {
+              try {
+                args = JSON.parse(accumulatedCall.arguments);
+              } catch (error) {
+                console.error('Failed to parse final tool call arguments:', error);
+              }
+            }
+
+            parts.push({
+              functionCall: {
+                id: accumulatedCall.id,
+                name: accumulatedCall.name,
+                args,
+              },
+            });
+          }
+        }
+        // 清除所有累积的工具调用
+        this.streamingToolCalls.clear();
+      }
+    }
+
+    const response = new GenerateContentResponse();
+    response.candidates = [
+      {
+        content: {
+          parts,
+          role: 'model' as const,
+        },
+        finishReason: choice?.finish_reason
+          ? this.convertFinishReason(choice.finish_reason)
+          : FinishReason.FINISH_REASON_UNSPECIFIED,
+        index: 0,
+        safetyRatings: [],
+      },
+    ];
+
+    // 添加使用情况元数据（如果在块中可用）
+    if (chunk.usage) {
+      response.usageMetadata = {
+        promptTokenCount: chunk.usage.prompt_tokens || 0,
+        candidatesTokenCount: chunk.usage.completion_tokens || 0,
+        totalTokenCount: chunk.usage.total_tokens || 0,
+      };
+    }
+
+    return response;
   }
 
   /**
@@ -520,5 +728,112 @@ export class OpenAIAdapter extends BaseAdapter {
       };
     }
     return null;
+  }
+
+  /**
+   * 转换 Gemini 工具格式到 OpenAI 格式
+   */
+  private async convertGeminiToolsToOpenAI(geminiTools: ToolListUnion): Promise<OpenAITool[]> {
+    const openAITools: OpenAITool[] = [];
+
+    for (const tool of geminiTools) {
+      let actualTool: Tool;
+
+      // 处理 CallableTool vs Tool
+      if ('tool' in tool) {
+        // 这是一个 CallableTool，需要调用 tool() 方法获取实际工具
+        actualTool = await (tool as CallableTool).tool();
+      } else {
+        // 这已经是一个 Tool
+        actualTool = tool as Tool;
+      }
+
+      if (actualTool.functionDeclarations) {
+        for (const func of actualTool.functionDeclarations) {
+          if (func.name && func.description) {
+            openAITools.push({
+              type: 'function',
+              function: {
+                name: func.name,
+                description: func.description,
+                parameters: this.convertGeminiParametersToOpenAI(
+                  func.parameters as Record<string, unknown>
+                ),
+              },
+            });
+          }
+        }
+      }
+    }
+
+    return openAITools;
+  }
+
+  /**
+   * 转换 Gemini 参数格式到 OpenAI JSON Schema 格式
+   */
+  private convertGeminiParametersToOpenAI(
+    parameters?: Record<string, unknown>
+  ): Record<string, unknown> | undefined {
+    if (!parameters || typeof parameters !== 'object') {
+      return parameters;
+    }
+
+    const converted = JSON.parse(JSON.stringify(parameters));
+
+    const convertTypes = (obj: unknown): unknown => {
+      if (typeof obj !== 'object' || obj === null) {
+        return obj;
+      }
+
+      if (Array.isArray(obj)) {
+        return obj.map(convertTypes);
+      }
+
+      const result: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(obj)) {
+        if (key === 'type' && typeof value === 'string') {
+          // 转换 Gemini 类型到 OpenAI JSON Schema 类型
+          const lowerValue = value.toLowerCase();
+          if (lowerValue === 'integer') {
+            result[key] = 'integer';
+          } else if (lowerValue === 'number') {
+            result[key] = 'number';
+          } else {
+            result[key] = lowerValue;
+          }
+        } else if (
+          key === 'minimum' ||
+          key === 'maximum' ||
+          key === 'multipleOf'
+        ) {
+          // 确保数值约束是实际数字，而不是字符串
+          if (typeof value === 'string' && !isNaN(Number(value))) {
+            result[key] = Number(value);
+          } else {
+            result[key] = value;
+          }
+        } else if (
+          key === 'minLength' ||
+          key === 'maxLength' ||
+          key === 'minItems' ||
+          key === 'maxItems'
+        ) {
+          // 确保长度约束是整数，而不是字符串
+          if (typeof value === 'string' && !isNaN(Number(value))) {
+            result[key] = parseInt(value, 10);
+          } else {
+            result[key] = value;
+          }
+        } else if (typeof value === 'object') {
+          result[key] = convertTypes(value);
+        } else {
+          result[key] = value;
+        }
+      }
+      return result;
+    };
+
+    return convertTypes(converted) as Record<string, unknown> | undefined;
   }
 }
