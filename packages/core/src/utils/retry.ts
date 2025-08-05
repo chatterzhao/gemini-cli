@@ -50,6 +50,22 @@ function defaultShouldRetry(error: Error | unknown): boolean {
   if (error instanceof Error && error.message) {
     if (error.message.includes('429')) return true;
     if (error.message.match(/5\d{2}/)) return true;
+    
+    // 添加对超时错误的处理
+    const lowerMessage = error.message.toLowerCase();
+    if (lowerMessage.includes('timeout') || 
+        lowerMessage.includes('timed out') ||
+        lowerMessage.includes('etimedout') ||
+        lowerMessage.includes('esockettimedout') ||
+        lowerMessage.includes('deadline exceeded')) {
+      return true;
+    }
+    
+    // 对于400错误，某些情况下也可以重试（如请求超时导致的400）
+    if (error.message.includes('400') && 
+        (lowerMessage.includes('bad request') || lowerMessage.includes('request timeout'))) {
+      return true;
+    }
   }
   return false;
 }
