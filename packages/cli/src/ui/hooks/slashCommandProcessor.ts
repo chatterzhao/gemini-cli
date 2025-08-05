@@ -348,6 +348,10 @@ export const useSlashCommandProcessor = (
                     case 'editor':
                       openEditorDialog();
                       return { type: 'handled' };
+                    case 'help':
+                      // Handle help dialog - this case was missing
+                      // Add help dialog handling logic here if needed
+                      return { type: 'handled' };
                     case 'privacy':
                       openPrivacyNotice();
                       return { type: 'handled' };
