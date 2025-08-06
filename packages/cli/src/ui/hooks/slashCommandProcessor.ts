@@ -52,6 +52,7 @@ export const useSlashCommandProcessor = (
   openModelDialog: () => void, // 添加model对话框打开函数
   toggleVimEnabled: () => Promise<boolean>,
   setIsProcessing: (isProcessing: boolean) => void,
+  setGeminiMdFileCount: (count: number) => void,
 ) => {
   const session = useSessionStats();
   const [commands, setCommands] = useState<readonly SlashCommand[]>([]);
@@ -165,6 +166,7 @@ export const useSlashCommandProcessor = (
         toggleCorgiMode,
         toggleVimEnabled,
         openModelDialog,
+        setGeminiMdFileCount,
       },
       session: {
         stats: session.stats,
@@ -188,6 +190,7 @@ export const useSlashCommandProcessor = (
       toggleVimEnabled,
       sessionShellAllowlist,
       openModelDialog,
+      setGeminiMdFileCount,
     ],
   );
 

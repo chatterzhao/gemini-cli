@@ -61,6 +61,7 @@ export interface CommandContext {
     toggleVimEnabled: () => Promise<boolean>;
     /** Opens the model selection dialog */
     openModelDialog: () => void;
+    setGeminiMdFileCount: (count: number) => void;
   };
   // Session-specific data
   session: {
