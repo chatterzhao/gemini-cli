@@ -1,5 +1,28 @@
 # Gemini CLI 可扩展供应商/模型架构设计
 
+## 实现后打包安装
+package.json中 "private": "true" 阻止了npm pack工作，改为false
+```bash
+  # 1. 修改package.json
+  # "private": "true" → "private": false
+
+  # 2. 确保bundle已构建
+  npm run bundle
+
+  # 3. 打包
+  npm pack
+  # 生成: google-gemini-cli-0.1.17.tgz
+
+  # 4. 安装使用
+  npm install -g ./google-gemini-cli-0.1.17.tgz
+  gemini --version  # 测试是否工作
+
+  分享给别人：
+  # 别人收到tgz文件后：
+  npm install -g /path/to/google-gemini-cli-0.1.17.tgz
+  gemini --help
+```
+
 ## 项目目标与需求
 
 ### 功能需求
