@@ -41,6 +41,7 @@ import { Colors } from './colors.js';
 import { Help } from './components/Help.js';
 import { ModelSelectionDialog } from './components/ModelSelectionDialog.js';
 import { loadHierarchicalGeminiMemory } from '../config/config.js';
+import { LoadedSettings, SettingScope } from '../config/settings.js';
 import { Tips } from './components/Tips.js';
 import { ConsolePatcher } from './utils/ConsolePatcher.js';
 import { registerCleanup } from '../utils/cleanup.js';
@@ -63,6 +64,10 @@ import {
   type IdeContext,
   ideContext,
 } from '@google/gemini-cli-core';
+import {
+  IdeIntegrationNudge,
+  IdeIntegrationNudgeResult,
+} from './IdeIntegrationNudge.js';
 import { validateAuthMethod } from '../config/auth.js';
 import { useLogger } from './hooks/useLogger.js';
 import { StreamingContext } from './contexts/StreamingContext.js';
@@ -90,7 +95,6 @@ import { ShowMoreLines } from './components/ShowMoreLines.js';
 import { PrivacyNotice } from './privacy/PrivacyNotice.js';
 import { setUpdateHandler } from '../utils/handleAutoUpdate.js';
 import { appEvents, AppEvent } from '../utils/events.js';
-import { LoadedSettings, SettingScope } from '../config/settings.js';
 
 const CTRL_EXIT_PROMPT_DURATION_MS = 1000;
 
@@ -116,6 +120,15 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
   const { stdout } = useStdout();
   const nightly = version.includes('nightly');
   const { history, addItem, clearItems, loadHistory } = useHistory();
+
+  const [idePromptAnswered, setIdePromptAnswered] = useState(false);
+  const currentIDE = config.getIdeClient().getCurrentIde();
+  const shouldShowIdePrompt =
+    config.getIdeModeFeature() &&
+    currentIDE &&
+    !config.getIdeMode() &&
+    !settings.merged.hasSeenIdeIntegrationNudge &&
+    !idePromptAnswered;
 
   useEffect(() => {
     const cleanup = setUpdateHandler(addItem, setUpdateInfo);
@@ -499,6 +512,24 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
     setGeminiMdFileCount,
   );
 
+  const buffer = useTextBuffer({
+    initialText: '',
+    viewport: { height: 10, width: inputWidth },
+    stdin,
+    setRawMode,
+    isValidPath,
+    shellModeActive,
+  });
+
+  const [userMessages, setUserMessages] = useState<string[]>([]);
+
+  const handleUserCancel = useCallback(() => {
+    const lastUserMessage = userMessages.at(-1);
+    if (lastUserMessage) {
+      buffer.setText(lastUserMessage);
+    }
+  }, [buffer, userMessages]);
+
   const {
     streamingState,
     submitQuery,
@@ -519,6 +550,7 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
     modelSwitchedFromQuotaError,
     setModelSwitchedFromQuotaError,
     refreshStatic,
+    handleUserCancel,
   );
 
   // Input handling
@@ -532,14 +564,26 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
     [submitQuery],
   );
 
-  const buffer = useTextBuffer({
-    initialText: '',
-    viewport: { height: 10, width: inputWidth },
-    stdin,
-    setRawMode,
-    isValidPath,
-    shellModeActive,
-  });
+  const handleIdePromptComplete = useCallback(
+    (result: IdeIntegrationNudgeResult) => {
+      if (result === 'yes') {
+        handleSlashCommand('/ide install');
+        settings.setValue(
+          SettingScope.User,
+          'hasSeenIdeIntegrationNudge',
+          true,
+        );
+      } else if (result === 'dismiss') {
+        settings.setValue(
+          SettingScope.User,
+          'hasSeenIdeIntegrationNudge',
+          true,
+        );
+      }
+      setIdePromptAnswered(true);
+    },
+    [handleSlashCommand, settings],
+  );
 
   const { handleInput: vimHandleInput } = useVim(buffer, handleFinalSubmit);
   const pendingHistoryItems = [...pendingSlashCommandHistoryItems];
@@ -661,7 +705,6 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
   }, [config, config.getGeminiMdFileCount]);
 
   const logger = useLogger();
-  const [userMessages, setUserMessages] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchUserMessages = async () => {
@@ -813,6 +856,7 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
       </Box>
     );
   }
+
   const mainAreaWidth = Math.floor(terminalWidth * 0.9);
   const debugConsoleMaxHeight = Math.floor(Math.max(terminalHeight * 0.2, 5));
   // Arbitrary threshold to ensure that items in the static area are large
@@ -904,7 +948,13 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
             </Box>
           )}
 
-          {shellConfirmationRequest ? (
+          {shouldShowIdePrompt ? (
+            <IdeIntegrationNudge
+              question="Do you want to connect your VS Code editor to Gemini CLI?"
+              description="If you select Yes, we'll install an extension that allows the CLI to access your open files and display diffs directly in VS Code."
+              onComplete={handleIdePromptComplete}
+            />
+          ) : shellConfirmationRequest ? (
             <ShellConfirmationDialog request={shellConfirmationRequest} />
           ) : isThemeDialogOpen ? (
             <Box flexDirection="column">
