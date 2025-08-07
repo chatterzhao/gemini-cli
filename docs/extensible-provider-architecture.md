@@ -3,6 +3,11 @@
 ## 实现后打包安装
 package.json中 "private": "true" 阻止了npm pack工作，改为false
 ```bash
+  # 验证已经安装情况
+  npm list -g | grep gemini
+  # 卸载
+  npm uninstall -g @google/gemini-cli
+
   # 1. 修改package.json
   # "private": "true" → "private": false
 
@@ -20,7 +25,9 @@ package.json中 "private": "true" 阻止了npm pack工作，改为false
   分享给别人：
   # 别人收到tgz文件后：
   npm install -g /path/to/google-gemini-cli-0.1.17.tgz
-  gemini --help
+  gemini --version
+
+  # 一个综合命令：npm install && npm run clean && npm run build && npm run bundle && npm pack && npm install -g ./google-gemini-cli-0.1.17.tgz && gemini --version
 ```
 
 ## 项目目标与需求
