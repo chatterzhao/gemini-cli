@@ -18,6 +18,7 @@ import { DEFAULT_GEMINI_MODEL } from '../config/models.js';
 import { Config } from '../config/config.js';
 import { getEffectiveModel } from './modelCheck.js';
 import { UserTierId } from '../code_assist/types.js';
+import { LoggingContentGenerator } from './loggingContentGenerator.js';
 
 // 添加适配器管理器导入
 import { loadAdapter, type AdapterType } from '../providers/index.js';
@@ -187,11 +188,14 @@ export async function createContentGenerator(
     config.authType === AuthType.LOGIN_WITH_GOOGLE ||
     config.authType === AuthType.CLOUD_SHELL
   ) {
-    return createCodeAssistContentGenerator(
-      httpOptions,
-      config.authType,
+    return new LoggingContentGenerator(
+      await createCodeAssistContentGenerator(
+        httpOptions,
+        config.authType,
+        gcConfig,
+        sessionId,
+      ),
       gcConfig,
-      sessionId,
     );
   }
 
@@ -204,10 +208,8 @@ export async function createContentGenerator(
       vertexai: config.vertexai,
       httpOptions,
     });
-
-    return googleGenAI.models;
+    return new LoggingContentGenerator(googleGenAI.models, gcConfig);
   }
-
   throw new Error(
     `Error creating contentGenerator: Unsupported authType: ${config.authType}`,
   );

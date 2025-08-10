@@ -9,17 +9,20 @@ import * as path from 'path';
 import { homedir, platform } from 'os';
 import * as dotenv from 'dotenv';
 import {
-  MCPServerConfig,
   GEMINI_CONFIG_DIR as GEMINI_DIR,
   getErrorMessage,
-  BugCommandSettings,
-  TelemetrySettings,
   AuthType,
+  MCPServerConfig,
+  TelemetrySettings,
+  BugCommandSettings,
 } from '@google/gemini-cli-core';
 import stripJsonComments from 'strip-json-comments';
 import { DefaultLight } from '../ui/themes/default-light.js';
 import { DefaultDark } from '../ui/themes/default.js';
 import { CustomTheme } from '../ui/themes/theme.js';
+import { MemoryImportFormat, DnsResolutionOrder, Settings, CustomProviderConfig } from './settingsSchema.js';
+
+export type { MemoryImportFormat, DnsResolutionOrder, Settings, CustomProviderConfig };
 
 export const SETTINGS_DIRECTORY_NAME = '.gemini';
 export const USER_SETTINGS_DIR = path.join(homedir(), SETTINGS_DIRECTORY_NAME);
@@ -43,7 +46,6 @@ export function getWorkspaceSettingsPath(workspaceDir: string): string {
   return path.join(workspaceDir, SETTINGS_DIRECTORY_NAME, 'settings.json');
 }
 
-export type DnsResolutionOrder = 'ipv4first' | 'verbatim';
 
 export enum SettingScope {
   User = 'User',
@@ -63,120 +65,9 @@ export interface AccessibilitySettings {
   disableLoadingPhrases?: boolean;
 }
 
-export interface CustomProviderConfig {
-  id: string;                  // 唯一标识
-  name: string;               // 显示名称  
-  displayName: string;        // 显示名称（用于UI显示）
-  adapterType: 'openai' | 'anthropic';
-  baseUrl: string;
-  /**
-   * API密钥，可以直接指定或通过环境变量引用两种方式，如果手工编辑，格式参考：
-   * 直接指定: "sk-xxx"
-   * 环境变量引用: "$DEEPSEEK_API_KEY"
-   */
-  apiKey: string;
-  models: string[];           // 可用模型列表
-  
-  // 模型覆盖配置 - 允许对特定模型进行详细配置覆盖
-  modelOverrides?: Record<string, {
-    contextWindow?: number;
-    maxOutputTokens?: number;
-    supportedModalities?: string[];
-    features?: {
-      streaming?: boolean;
-      functionCalling?: boolean;
-      vision?: boolean;
-    };
-  }>;
-  
-  // Provider级别覆盖配置 - 允许对特定Provider进行详细配置覆盖
-  providerOverrides?: {
-    timeout?: number;
-    maxRetries?: number;
-    customHeaders?: Record<string, string>;
-    [key: string]: any;
-  };
-  
-  createdAt?: string;         // 创建时间
-  updatedAt?: string;         // 更新时间
-}
+// CustomProviderConfig is now defined in settingsSchema.ts
 
-export interface Settings {
-  theme?: string;
-  customThemes?: Record<string, CustomTheme>;
-  selectedAuthType?: AuthType;
-  useExternalAuth?: boolean;
-  sandbox?: boolean | string;
-  coreTools?: string[];
-  excludeTools?: string[];
-  toolDiscoveryCommand?: string;
-  toolCallCommand?: string;
-  mcpServerCommand?: string;
-  mcpServers?: Record<string, MCPServerConfig>;
-  allowMCPServers?: string[];
-  excludeMCPServers?: string[];
-  showMemoryUsage?: boolean;
-  contextFileName?: string | string[];
-  accessibility?: AccessibilitySettings;
-  telemetry?: TelemetrySettings;
-  usageStatisticsEnabled?: boolean;
-  preferredEditor?: string;
-  bugCommand?: BugCommandSettings;
-  checkpointing?: CheckpointingSettings;
-  autoConfigureMaxOldSpaceSize?: boolean;
-  /** The model name to use (e.g 'gemini-9.0-pro') */
-  model?: string;
-
-  // Git-aware file filtering settings
-  fileFiltering?: {
-    respectGitIgnore?: boolean;
-    respectGeminiIgnore?: boolean;
-    enableRecursiveFileSearch?: boolean;
-  };
-
-  hideWindowTitle?: boolean;
-
-  hideTips?: boolean;
-  hideBanner?: boolean;
-
-  // Setting for setting maximum number of user/model/tool turns in a session.
-  maxSessionTurns?: number;
-
-  // A map of tool names to their summarization settings.
-  summarizeToolOutput?: Record<string, SummarizeToolOutputSettings>;
-
-  vimMode?: boolean;
-  memoryImportFormat?: 'tree' | 'flat';
-
-  // Flag to be removed post-launch.
-  ideModeFeature?: boolean;
-  folderTrustFeature?: boolean;
-  /// IDE mode setting configured via slash command toggle.
-  ideMode?: boolean;
-
-  // Setting to track if the user has seen the IDE integration nudge.
-  hasSeenIdeIntegrationNudge?: boolean;
-
-  // Setting for disabling auto-update.
-  disableAutoUpdate?: boolean;
-
-  // Setting for disabling the update nag message.
-  disableUpdateNag?: boolean;
-
-  memoryDiscoveryMaxDirs?: number;
-
-  // Custom Provider 相关配置
-  currentProvider?: string;    // 当前使用的 provider ID  
-  currentModel?: string;       // 当前使用的 model
-  customProviders?: Record<string, CustomProviderConfig>;
-  // Environment variables to exclude from project .env files
-  excludedProjectEnvVars?: string[];
-  dnsResolutionOrder?: DnsResolutionOrder;
-
-  includeDirectories?: string[];
-
-  loadMemoryFromIncludeDirectories?: boolean;
-}
+// Settings interface is now imported from settingsSchema.ts for type consistency
 
 export interface SettingsError {
   message: string;
@@ -217,9 +108,13 @@ export class LoadedSettings {
     const user = this.user.settings;
     const workspace = this.workspace.settings;
 
+    // folderTrust is not supported at workspace level.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { folderTrust, ...workspaceWithoutFolderTrust } = workspace;
+
     return {
       ...user,
-      ...workspace,
+      ...workspaceWithoutFolderTrust,
       ...system,
       customThemes: {
         ...(user.customThemes || {}),
@@ -236,6 +131,11 @@ export class LoadedSettings {
         ...(user.includeDirectories || []),
         ...(workspace.includeDirectories || []),
       ],
+      chatCompression: {
+        ...(system.chatCompression || {}),
+        ...(user.chatCompression || {}),
+        ...(workspace.chatCompression || {}),
+      },
     };
   }
 
@@ -523,6 +423,19 @@ export function loadSettings(workspaceDir: string): LoadedSettings {
     },
     settingsErrors,
   );
+
+  // Validate chatCompression settings
+  const chatCompression = loadedSettings.merged.chatCompression;
+  const threshold = chatCompression?.contextPercentageThreshold;
+  if (
+    threshold != null &&
+    (typeof threshold !== 'number' || threshold < 0 || threshold > 1)
+  ) {
+    console.warn(
+      `Invalid value for chatCompression.contextPercentageThreshold: "${threshold}". Please use a value between 0 and 1. Using default compression settings.`,
+    );
+    delete loadedSettings.merged.chatCompression;
+  }
 
   // Load environment with merged settings
   loadEnvironment(loadedSettings.merged);
