@@ -280,6 +280,14 @@ In addition to a project settings file, a project's `.gemini` directory can cont
     }
     ```
 
+- **`showLineNumbers`** (boolean):
+  - **Description:** Controls whether line numbers are displayed in code blocks in the CLI output.
+  - **Default:** `true`
+  - **Example:**
+    ```json
+    "showLineNumbers": false
+    ```
+
 ### Example `settings.json`:
 
 ```json
@@ -328,7 +336,7 @@ The CLI keeps a history of shell commands you run. To avoid conflicts between di
 
 ## Environment Variables & `.env` Files
 
-Environment variables are a common way to configure applications, especially for sensitive information like API keys or for settings that might change between environments.
+Environment variables are a common way to configure applications, especially for sensitive information like API keys or for settings that might change between environments. For authentication setup, see the [Authentication documentation](./authentication.md) which covers all available authentication methods.
 
 The CLI automatically loads environment variables from an `.env` file. The loading order is:
 
@@ -338,9 +346,9 @@ The CLI automatically loads environment variables from an `.env` file. The loadi
 
 **Environment Variable Exclusion:** Some environment variables (like `DEBUG` and `DEBUG_MODE`) are automatically excluded from being loaded from project `.env` files to prevent interference with gemini-cli behavior. Variables from `.gemini/.env` files are never excluded. You can customize this behavior using the `excludedProjectEnvVars` setting in your `settings.json` file.
 
-- **`GEMINI_API_KEY`** (Required):
+- **`GEMINI_API_KEY`**:
   - Your API key for the Gemini API.
-  - **Crucial for operation.** The CLI will not function without it.
+  - One of several available [authentication methods](./authentication.md).
   - Set this in your shell profile (e.g., `~/.bashrc`, `~/.zshrc`) or an `.env` file.
 - **`GEMINI_MODEL`**:
   - Specifies the default Gemini model to use.
@@ -414,12 +422,21 @@ Arguments passed directly when running the CLI can override other configurations
   - Displays the current memory usage.
 - **`--yolo`**:
   - Enables YOLO mode, which automatically approves all tool calls.
+- **`--approval-mode <mode>`**:
+  - Sets the approval mode for tool calls. Available modes:
+    - `default`: Prompt for approval on each tool call (default behavior)
+    - `auto_edit`: Automatically approve edit tools (replace, write_file) while prompting for others
+    - `yolo`: Automatically approve all tool calls (equivalent to `--yolo`)
+  - Cannot be used together with `--yolo`. Use `--approval-mode=yolo` instead of `--yolo` for the new unified approach.
+  - Example: `gemini --approval-mode auto_edit`
 - **`--telemetry`**:
   - Enables [telemetry](../telemetry.md).
 - **`--telemetry-target`**:
   - Sets the telemetry target. See [telemetry](../telemetry.md) for more information.
 - **`--telemetry-otlp-endpoint`**:
   - Sets the OTLP endpoint for telemetry. See [telemetry](../telemetry.md) for more information.
+- **`--telemetry-otlp-protocol`**:
+  - Sets the OTLP protocol for telemetry (`grpc` or `http`). Defaults to `grpc`. See [telemetry](../telemetry.md) for more information.
 - **`--telemetry-log-prompts`**:
   - Enables logging of prompts for telemetry. See [telemetry](../telemetry.md) for more information.
 - **`--checkpointing`**:
@@ -509,7 +526,7 @@ Sandboxing is disabled by default, but you can enable it in a few ways:
 
 - Using `--sandbox` or `-s` flag.
 - Setting `GEMINI_SANDBOX` environment variable.
-- Sandbox is enabled in `--yolo` mode by default.
+- Sandbox is enabled when using `--yolo` or `--approval-mode=yolo` by default.
 
 By default, it uses a pre-built `gemini-cli-sandbox` Docker image.
 

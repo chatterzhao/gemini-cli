@@ -5,10 +5,8 @@
  */
 
 import React, { useState } from 'react';
-import { Box, Text, useInput } from 'ink';
-import { Colors } from '../colors.js';
-import { LoadedSettings, SettingScope, CustomProviderConfig } from '../../config/settings.js';
-import { AuthType } from '@google/gemini-cli-core';
+import { useInput } from 'ink';
+import { LoadedSettings, CustomProviderConfig } from '../../config/settings.js';
 import { ProviderSelectionDialog } from './ProviderSelectionDialog.js';
 import { CustomProviderConfigForm } from './CustomProviderConfigForm.js';
 
@@ -16,8 +14,8 @@ interface CustomProviderFlowProps {
   settings: LoadedSettings;
   onComplete: (providerConfig: CustomProviderConfig) => void;
   onCancel: () => void;
-  onDelete?: (providerId: string) => void;
-  onModelUpdate?: (providerConfig: CustomProviderConfig) => void;
+  onDelete: (providerId: string) => void;
+  onModelUpdate: (providerConfig: CustomProviderConfig) => void;
 }
 
 type FlowStep = 'list' | 'adapter_selection' | 'config';
@@ -143,17 +141,3 @@ export function CustomProviderFlow({
   );
 }
 
-// 辅助函数：生成provider ID
-function generateProviderId(name: string): string {
-  // 将名称转换为小写，移除特殊字符，用连字符替换空格
-  const baseId = name
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-  
-  // 添加时间戳确保唯一性
-  const timestamp = Date.now().toString(36);
-  return `${baseId}-${timestamp}`;
-}

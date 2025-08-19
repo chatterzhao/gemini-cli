@@ -63,6 +63,7 @@ export interface CommandContext {
     /** Opens the model selection dialog */
     openModelDialog: () => void;
     setGeminiMdFileCount: (count: number) => void;
+    reloadCommands: () => void;
   };
   // Session-specific data
   session: {

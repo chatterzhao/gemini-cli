@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
 import { render } from 'ink-testing-library';
 import { vi } from 'vitest';
 import { CustomProviderConfigForm } from './CustomProviderConfigForm.js';

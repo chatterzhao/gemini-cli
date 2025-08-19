@@ -482,7 +482,7 @@ export class OpenAIAdapter extends BaseAdapter {
    * @param role 角色名称
    * @returns 支持的模态数组
    */
-  getSupportedModalities(role: string): string[] {
+  override getSupportedModalities(role: string): string[] {
     // OpenAI 支持的模态
     return ['text', 'image'];
   }
@@ -717,9 +717,9 @@ export class OpenAIAdapter extends BaseAdapter {
   }
 
   /**
-   * 从API响应中提取token使用情况
+   * 从响应中提取token使用情况
    */
-  protected extractTokenUsage(response: any): { promptTokens: number; completionTokens: number; totalTokens: number } | null {
+  protected override extractTokenUsage(response: any): { promptTokens: number; completionTokens: number; totalTokens: number } | null {
     if (response.usage) {
       return {
         promptTokens: response.usage.prompt_tokens || 0,
