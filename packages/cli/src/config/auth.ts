@@ -1,11 +1,6 @@
-/**
- * @license
- * Copyright 2025 Google LLC
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { AuthType } from '@google/gemini-cli-core';
 import { loadEnvironment, loadSettings } from './settings.js';
+import { homedir } from 'os'; // 添加对 os 模块的导入
 
 export const validateAuthMethod = (authMethod: string): string | null => {
   loadEnvironment();
@@ -13,7 +8,7 @@ export const validateAuthMethod = (authMethod: string): string | null => {
   // Custom Provider 绕过 Google 认证验证
   if (authMethod === AuthType.CUSTOM_PROVIDER) {
     // 检查是否有有效的自定义供应商配置
-    const settings = loadSettings(process.cwd());
+    const settings = loadSettings(homedir()); // 修改：使用用户主目录路径
     const currentProvider = settings.merged.currentProvider;
     const customProviders = settings.merged.customProviders;
     
