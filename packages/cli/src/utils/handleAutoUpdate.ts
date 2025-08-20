@@ -26,9 +26,14 @@ export function handleAutoUpdate(
     return;
   }
 
+  // 检查是否禁用了自动更新（包括环境变量和设置）
+  const isAutoUpdateDisabled = 
+    (settings.merged.disableAutoUpdate ?? true) || 
+    process.env['GEMINI_CLI_DISABLE_AUTOUPDATER'] === 'true';
+
   const installationInfo = getInstallationInfo(
     projectRoot,
-    settings.merged.disableAutoUpdate ?? false,
+    isAutoUpdateDisabled,
   );
 
   let combinedMessage = info.message;
@@ -40,9 +45,11 @@ export function handleAutoUpdate(
     message: combinedMessage,
   });
 
-  if (!installationInfo.updateCommand || settings.merged.disableAutoUpdate) {
+  // 如果禁用了自动更新或没有更新命令，则不执行自动更新
+  if (!installationInfo.updateCommand || isAutoUpdateDisabled) {
     return;
   }
+  
   const isNightly = info.update.latest.includes('nightly');
 
   const updateCommand = installationInfo.updateCommand.replace(
