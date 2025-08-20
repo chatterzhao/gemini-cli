@@ -11,17 +11,22 @@ import * as dotenv from 'dotenv';
 import {
   GEMINI_CONFIG_DIR as GEMINI_DIR,
   getErrorMessage,
+  Storage,
 } from '@google/gemini-cli-core';
 import stripJsonComments from 'strip-json-comments';
 import { DefaultLight } from '../ui/themes/default-light.js';
 import { DefaultDark } from '../ui/themes/default.js';
-import { MemoryImportFormat, DnsResolutionOrder, Settings, CustomProviderConfig } from './settingsSchema.js';
 
-export type { MemoryImportFormat, DnsResolutionOrder, Settings, CustomProviderConfig };
+import { MemoryImportFormat, Settings, CustomProviderConfig } from './settingsSchema.js';
+
+import { isWorkspaceTrusted } from './trustedFolders.js';
+
+export type { MemoryImportFormat, Settings, CustomProviderConfig };
 
 export const SETTINGS_DIRECTORY_NAME = '.gemini';
-export const USER_SETTINGS_DIR = path.join(homedir(), SETTINGS_DIRECTORY_NAME);
-export const USER_SETTINGS_PATH = path.join(USER_SETTINGS_DIR, 'settings.json');
+
+export const USER_SETTINGS_PATH = Storage.getGlobalSettingsPath();
+export const USER_SETTINGS_DIR = path.dirname(USER_SETTINGS_PATH);
 export const DEFAULT_EXCLUDED_ENV_VARS = ['DEBUG', 'DEBUG_MODE'];
 
 export function getSystemSettingsPath(): string {
@@ -41,6 +46,7 @@ export function getWorkspaceSettingsPath(workspaceDir: string): string {
   return path.join(workspaceDir, SETTINGS_DIRECTORY_NAME, 'settings.json');
 }
 
+export type { DnsResolutionOrder } from './settingsSchema.js';
 
 export enum SettingScope {
   User = 'User',
@@ -73,17 +79,79 @@ export interface SettingsFile {
   settings: Settings;
   path: string;
 }
+
+function mergeSettings(
+  system: Settings,
+  user: Settings,
+  workspace: Settings,
+  isTrusted?: boolean,
+): Settings {
+  if (!isTrusted) {
+    return {
+      ...user,
+      ...system,
+      customThemes: {
+        ...(user.customThemes || {}),
+        ...(system.customThemes || {}),
+      },
+      mcpServers: {
+        ...(user.mcpServers || {}),
+        ...(system.mcpServers || {}),
+      },
+      includeDirectories: [
+        ...(system.includeDirectories || []),
+        ...(user.includeDirectories || []),
+      ],
+      chatCompression: {
+        ...(system.chatCompression || {}),
+        ...(user.chatCompression || {}),
+      },
+    };
+  }
+  // folderTrust is not supported at workspace level.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { folderTrust, ...workspaceWithoutFolderTrust } = workspace;
+
+  return {
+    ...user,
+    ...workspaceWithoutFolderTrust,
+    ...system,
+    customThemes: {
+      ...(user.customThemes || {}),
+      ...(workspace.customThemes || {}),
+      ...(system.customThemes || {}),
+    },
+    mcpServers: {
+      ...(user.mcpServers || {}),
+      ...(workspace.mcpServers || {}),
+      ...(system.mcpServers || {}),
+    },
+    includeDirectories: [
+      ...(system.includeDirectories || []),
+      ...(user.includeDirectories || []),
+      ...(workspace.includeDirectories || []),
+    ],
+    chatCompression: {
+      ...(system.chatCompression || {}),
+      ...(user.chatCompression || {}),
+      ...(workspace.chatCompression || {}),
+    },
+  };
+}
+
 export class LoadedSettings {
   constructor(
     system: SettingsFile,
     user: SettingsFile,
     workspace: SettingsFile,
     errors: SettingsError[],
+    isTrusted?: boolean,
   ) {
     this.system = system;
     this.user = user;
     this.workspace = workspace;
     this.errors = errors;
+    this.isTrusted = isTrusted;
     this._merged = this.computeMergedSettings();
   }
 
@@ -91,6 +159,7 @@ export class LoadedSettings {
   readonly user: SettingsFile;
   readonly workspace: SettingsFile;
   readonly errors: SettingsError[];
+  private isTrusted: boolean | undefined;
 
   private _merged: Settings;
 
@@ -98,40 +167,18 @@ export class LoadedSettings {
     return this._merged;
   }
 
+  recomputeMergedSettings(isTrusted?: boolean): void {
+    this.isTrusted = isTrusted;
+    this._merged = this.computeMergedSettings();
+  }
+
   private computeMergedSettings(): Settings {
-    const system = this.system.settings;
-    const user = this.user.settings;
-    const workspace = this.workspace.settings;
-
-    // folderTrust is not supported at workspace level.
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { folderTrust, ...workspaceWithoutFolderTrust } = workspace;
-
-    return {
-      ...user,
-      ...workspaceWithoutFolderTrust,
-      ...system,
-      customThemes: {
-        ...(user.customThemes || {}),
-        ...(workspace.customThemes || {}),
-        ...(system.customThemes || {}),
-      },
-      mcpServers: {
-        ...(user.mcpServers || {}),
-        ...(workspace.mcpServers || {}),
-        ...(system.mcpServers || {}),
-      },
-      includeDirectories: [
-        ...(system.includeDirectories || []),
-        ...(user.includeDirectories || []),
-        ...(workspace.includeDirectories || []),
-      ],
-      chatCompression: {
-        ...(system.chatCompression || {}),
-        ...(user.chatCompression || {}),
-        ...(workspace.chatCompression || {}),
-      },
-    };
+    return mergeSettings(
+      this.system.settings,
+      this.user.settings,
+      this.workspace.settings,
+      this.isTrusted,
+    );
   }
 
   forScope(scope: SettingScope): SettingsFile {
@@ -263,7 +310,9 @@ export function loadEnvironment(settings?: Settings): void {
   // If no settings provided, try to load workspace settings for exclusions
   let resolvedSettings = settings;
   if (!resolvedSettings) {
-    const workspaceSettingsPath = getWorkspaceSettingsPath(process.cwd());
+    const workspaceSettingsPath = new Storage(
+      process.cwd(),
+    ).getWorkspaceSettingsPath();
     try {
       if (fs.existsSync(workspaceSettingsPath)) {
         const workspaceContent = fs.readFileSync(
@@ -336,16 +385,15 @@ export function loadSettings(workspaceDir: string): LoadedSettings {
   // We expect homedir to always exist and be resolvable.
   const realHomeDir = fs.realpathSync(resolvedHomeDir);
 
-  const workspaceSettingsPath = getWorkspaceSettingsPath(workspaceDir);
+  const workspaceSettingsPath = new Storage(
+    workspaceDir,
+  ).getWorkspaceSettingsPath();
 
   // Load system settings
   try {
     if (fs.existsSync(systemSettingsPath)) {
       const systemContent = fs.readFileSync(systemSettingsPath, 'utf-8');
-      const parsedSystemSettings = JSON.parse(
-        stripJsonComments(systemContent),
-      ) as Settings;
-      systemSettings = resolveEnvVarsInObject(parsedSystemSettings);
+      systemSettings = JSON.parse(stripJsonComments(systemContent)) as Settings;
     }
   } catch (error: unknown) {
     settingsErrors.push({
@@ -358,10 +406,7 @@ export function loadSettings(workspaceDir: string): LoadedSettings {
   try {
     if (fs.existsSync(USER_SETTINGS_PATH)) {
       const userContent = fs.readFileSync(USER_SETTINGS_PATH, 'utf-8');
-      const parsedUserSettings = JSON.parse(
-        stripJsonComments(userContent),
-      ) as Settings;
-      userSettings = resolveEnvVarsInObject(parsedUserSettings);
+      userSettings = JSON.parse(stripJsonComments(userContent)) as Settings;
       // Support legacy theme names
       if (userSettings.theme && userSettings.theme === 'VS') {
         userSettings.theme = DefaultLight.name;
@@ -381,10 +426,9 @@ export function loadSettings(workspaceDir: string): LoadedSettings {
     try {
       if (fs.existsSync(workspaceSettingsPath)) {
         const projectContent = fs.readFileSync(workspaceSettingsPath, 'utf-8');
-        const parsedWorkspaceSettings = JSON.parse(
+        workspaceSettings = JSON.parse(
           stripJsonComments(projectContent),
         ) as Settings;
-        workspaceSettings = resolveEnvVarsInObject(parsedWorkspaceSettings);
         if (workspaceSettings.theme && workspaceSettings.theme === 'VS') {
           workspaceSettings.theme = DefaultLight.name;
         } else if (
@@ -402,6 +446,27 @@ export function loadSettings(workspaceDir: string): LoadedSettings {
     }
   }
 
+  // For the initial trust check, we can only use user and system settings.
+  const initialTrustCheckSettings = { ...systemSettings, ...userSettings };
+  const isTrusted = isWorkspaceTrusted(initialTrustCheckSettings);
+
+  // Create a temporary merged settings object to pass to loadEnvironment.
+  const tempMergedSettings = mergeSettings(
+    systemSettings,
+    userSettings,
+    workspaceSettings,
+    isTrusted,
+  );
+
+  // loadEnviroment depends on settings so we have to create a temp version of
+  // the settings to avoid a cycle
+  loadEnvironment(tempMergedSettings);
+
+  // Now that the environment is loaded, resolve variables in the settings.
+  systemSettings = resolveEnvVarsInObject(systemSettings);
+  userSettings = resolveEnvVarsInObject(userSettings);
+  workspaceSettings = resolveEnvVarsInObject(workspaceSettings);
+
   // Create LoadedSettings first
   const loadedSettings = new LoadedSettings(
     {
@@ -417,6 +482,7 @@ export function loadSettings(workspaceDir: string): LoadedSettings {
       settings: workspaceSettings,
     },
     settingsErrors,
+    isTrusted,
   );
 
   // Validate chatCompression settings
@@ -431,9 +497,6 @@ export function loadSettings(workspaceDir: string): LoadedSettings {
     );
     delete loadedSettings.merged.chatCompression;
   }
-
-  // Load environment with merged settings
-  loadEnvironment(loadedSettings.merged);
 
   return loadedSettings;
 }

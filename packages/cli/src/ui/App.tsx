@@ -4,7 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+  useContext,
+} from 'react';
 import {
   Box,
   DOMElement,
@@ -24,6 +31,7 @@ import { useFolderTrust } from './hooks/useFolderTrust.js';
 import { useEditorSettings } from './hooks/useEditorSettings.js';
 import { useSlashCommandProcessor } from './hooks/slashCommandProcessor.js';
 import { useAutoAcceptIndicator } from './hooks/useAutoAcceptIndicator.js';
+import { useMessageQueue } from './hooks/useMessageQueue.js';
 import { useConsoleMessages } from './hooks/useConsoleMessages.js';
 import { Header } from './components/Header.js';
 import { LoadingIndicator } from './components/LoadingIndicator.js';
@@ -41,7 +49,7 @@ import { RadioButtonSelect } from './components/shared/RadioButtonSelect.js';
 import { Colors } from './colors.js';
 import { ModelSelectionDialog } from './components/ModelSelectionDialog.js';
 import { loadHierarchicalGeminiMemory } from '../config/config.js';
-import { LoadedSettings, SettingScope } from '../config/settings.js';
+import { SettingScope } from '../config/settings.js';
 import { Tips } from './components/Tips.js';
 import { ConsolePatcher } from './utils/ConsolePatcher.js';
 import { registerCleanup } from '../utils/cleanup.js';
@@ -100,26 +108,35 @@ import { useSettingsCommand } from './hooks/useSettingsCommand.js';
 import { SettingsDialog } from './components/SettingsDialog.js';
 import { setUpdateHandler } from '../utils/handleAutoUpdate.js';
 import { appEvents, AppEvent } from '../utils/events.js';
+import { SettingsContext } from './contexts/SettingsContext.js';
 import { isNarrowWidth } from './utils/isNarrowWidth.js';
 
 const CTRL_EXIT_PROMPT_DURATION_MS = 1000;
+// Maximum number of queued messages to display in UI to prevent performance issues
+const MAX_DISPLAYED_QUEUED_MESSAGES = 3;
 
 interface AppProps {
   config: Config;
-  settings: LoadedSettings;
   startupWarnings?: string[];
   version: string;
 }
 
 export const AppWrapper = (props: AppProps) => {
   const kittyProtocolStatus = useKittyKeyboardProtocol();
+  const settingsContext = useContext(SettingsContext);
+  if (!settingsContext) {
+    // This should not happen as AppWrapper is always rendered within the provider.
+    throw new Error('SettingsContext is not available');
+  }
+  const { settings } = settingsContext;
+
   return (
     <KeypressProvider
       kittyProtocolEnabled={kittyProtocolStatus.enabled}
       config={props.config}
     >
       <SessionStatsProvider>
-        <VimModeProvider settings={props.settings}>
+        <VimModeProvider settings={settings}>
           <App {...props} />
         </VimModeProvider>
       </SessionStatsProvider>
@@ -127,13 +144,19 @@ export const AppWrapper = (props: AppProps) => {
   );
 };
 
-const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
+const App = ({ config, startupWarnings = [], version }: AppProps) => {
   const isFocused = useFocus();
   useBracketedPaste();
   const [updateInfo, setUpdateInfo] = useState<UpdateObject | null>(null);
   const { stdout } = useStdout();
   const nightly = version.includes('nightly');
   const { history, addItem, clearItems, loadHistory } = useHistory();
+  const settingsContext = useContext(SettingsContext);
+  if (!settingsContext) {
+    // This should not happen as App is always rendered within the provider.
+    throw new Error('SettingsContext is not available');
+  }
+  const { settings } = settingsContext;
 
   const [idePromptAnswered, setIdePromptAnswered] = useState(false);
   const currentIDE = config.getIdeClient().getCurrentIde();
@@ -269,7 +292,7 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
     openThemeDialog,
     handleThemeSelect,
     handleThemeHighlight,
-  } = useThemeCommand(settings, setThemeError, addItem);
+  } = useThemeCommand(setThemeError, addItem);
 
   const { isSettingsDialogOpen, openSettingsDialog, closeSettingsDialog } =
     useSettingsCommand();
@@ -315,7 +338,7 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
     openEditorDialog,
     handleEditorSelect,
     exitEditorDialog,
-  } = useEditorSettings(settings, setEditorError, addItem);
+  } = useEditorSettings(setEditorError, addItem);
 
   const toggleCorgiMode = useCallback(() => {
     setCorgiMode((prev) => !prev);
@@ -557,12 +580,8 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
 
   const [userMessages, setUserMessages] = useState<string[]>([]);
 
-  const handleUserCancel = useCallback(() => {
-    const lastUserMessage = userMessages.at(-1);
-    if (lastUserMessage) {
-      buffer.setText(lastUserMessage);
-    }
-  }, [buffer, userMessages]);
+  // Stable reference for cancel handler to avoid circular dependency
+  const cancelHandlerRef = useRef<() => void>(() => {});
 
   const {
     streamingState,
@@ -585,18 +604,39 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
     modelSwitchedFromQuotaError,
     setModelSwitchedFromQuotaError,
     refreshStatic,
-    handleUserCancel,
+    () => cancelHandlerRef.current(),
   );
 
-  // Input handling
+  // Message queue for handling input during streaming
+  const { messageQueue, addMessage, clearQueue, getQueuedMessagesText } =
+    useMessageQueue({
+      streamingState,
+      submitQuery,
+    });
+
+  // Update the cancel handler with message queue support
+  cancelHandlerRef.current = useCallback(() => {
+    const lastUserMessage = userMessages.at(-1);
+    let textToSet = lastUserMessage || '';
+
+    // Append queued messages if any exist
+    const queuedText = getQueuedMessagesText();
+    if (queuedText) {
+      textToSet = textToSet ? `${textToSet}\n\n${queuedText}` : queuedText;
+      clearQueue();
+    }
+
+    if (textToSet) {
+      buffer.setText(textToSet);
+    }
+  }, [buffer, userMessages, getQueuedMessagesText, clearQueue]);
+
+  // Input handling - queue messages for processing
   const handleFinalSubmit = useCallback(
     (submittedValue: string) => {
-      const trimmedValue = submittedValue.trim();
-      if (trimmedValue.length > 0) {
-        submitQuery(trimmedValue);
-      }
+      addMessage(submittedValue);
     },
-    [submitQuery],
+    [addMessage],
   );
 
   const handleIdePromptComplete = useCallback(
@@ -677,7 +717,7 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
     (
       pressedOnce: boolean,
       setPressedOnce: (value: boolean) => void,
-      timerRef: React.MutableRefObject<NodeJS.Timeout | null>,
+      timerRef: ReturnType<typeof useRef<NodeJS.Timeout | null>>,
     ) => {
       if (pressedOnce) {
         if (timerRef.current) {
@@ -774,7 +814,7 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
     }
   }, [config, config.getGeminiMdFileCount]);
 
-  const logger = useLogger();
+  const logger = useLogger(config.storage);
 
   useEffect(() => {
     const fetchUserMessages = async () => {
@@ -813,7 +853,10 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
   }, [history, logger]);
 
   const isInputActive =
-    streamingState === StreamingState.Idle && !initError && !isProcessing;
+    (streamingState === StreamingState.Idle ||
+      streamingState === StreamingState.Responding) &&
+    !initError &&
+    !isProcessing;
 
   const handleClearScreen = useCallback(() => {
     clearItems();
@@ -1141,6 +1184,39 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
                 elapsedTime={elapsedTime}
               />
 
+              {/* Display queued messages below loading indicator */}
+              {messageQueue.length > 0 && (
+                <Box flexDirection="column" marginTop={1}>
+                  {messageQueue
+                    .slice(0, MAX_DISPLAYED_QUEUED_MESSAGES)
+                    .map((message, index) => {
+                      // Ensure multi-line messages are collapsed for the preview.
+                      // Replace all whitespace (including newlines) with a single space.
+                      const preview = message.replace(/\s+/g, ' ');
+
+                      return (
+                        // Ensure the Box takes full width so truncation calculates correctly
+                        <Box key={index} paddingLeft={2} width="100%">
+                          {/* Use wrap="truncate" to ensure it fits the terminal width and doesn't wrap */}
+                          <Text dimColor wrap="truncate">
+                            {preview}
+                          </Text>
+                        </Box>
+                      );
+                    })}
+                  {messageQueue.length > MAX_DISPLAYED_QUEUED_MESSAGES && (
+                    <Box paddingLeft={2}>
+                      <Text dimColor>
+                        ... (+
+                        {messageQueue.length -
+                          MAX_DISPLAYED_QUEUED_MESSAGES}{' '}
+                        more)
+                      </Text>
+                    </Box>
+                  )}
+                </Box>
+              )}
+
               <Box
                 marginTop={1}
                 justifyContent="space-between"
@@ -1253,23 +1329,27 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
               )}
             </Box>
           )}
-          <Footer
-            model={currentModel}
-            targetDir={config.getTargetDir()}
-            debugMode={config.getDebugMode()}
-            branchName={branchName}
-            debugMessage={debugMessage}
-            corgiMode={corgiMode}
-            errorCount={errorCount}
-            showErrorDetails={showErrorDetails}
-            showMemoryUsage={
-              config.getDebugMode() || settings.merged.showMemoryUsage || false
-            }
-            promptTokenCount={sessionStats.lastPromptTokenCount}
-            nightly={nightly}
-            vimMode={vimModeEnabled ? vimMode : undefined}
-            isTrustedFolder={isTrustedFolderState}
-          />
+          {!settings.merged.hideFooter && (
+            <Footer
+              model={currentModel}
+              targetDir={config.getTargetDir()}
+              debugMode={config.getDebugMode()}
+              branchName={branchName}
+              debugMessage={debugMessage}
+              corgiMode={corgiMode}
+              errorCount={errorCount}
+              showErrorDetails={showErrorDetails}
+              showMemoryUsage={
+                config.getDebugMode() ||
+                settings.merged.showMemoryUsage ||
+                false
+              }
+              promptTokenCount={sessionStats.lastPromptTokenCount}
+              nightly={nightly}
+              vimMode={vimModeEnabled ? vimMode : undefined}
+              isTrustedFolder={isTrustedFolderState}
+            />
+          )}
         </Box>
       </Box>
     </StreamingContext.Provider>

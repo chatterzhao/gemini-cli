@@ -6,6 +6,7 @@
 
 // Export config
 export * from './config/config.js';
+export { Storage } from './config/storage.js';
 
 // Export Core Logic
 export * from './core/client.js';

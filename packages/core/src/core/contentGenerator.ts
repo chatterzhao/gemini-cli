@@ -19,7 +19,7 @@ import { Config } from '../config/config.js';
 
 import { UserTierId } from '../code_assist/types.js';
 import { LoggingContentGenerator } from './loggingContentGenerator.js';
-import { getInstallationId } from '../utils/user_id.js';
+import { InstallationManager } from '../utils/installationManager.js';
 
 // 添加适配器管理器导入
 import { loadAdapter, type AdapterType } from '../providers/index.js';
@@ -201,7 +201,8 @@ export async function createContentGenerator(
   ) {
     let headers: Record<string, string> = { ...baseHeaders };
     if (gcConfig?.getUsageStatisticsEnabled()) {
-      const installationId = getInstallationId();
+      const installationManager = new InstallationManager();
+      const installationId = installationManager.getInstallationId();
       headers = {
         ...headers,
         'x-gemini-api-privileged-user-id': `${installationId}`,

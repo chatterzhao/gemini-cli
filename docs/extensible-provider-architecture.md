@@ -27,7 +27,7 @@ package.json中 "private": "true" 阻止了npm pack工作，改为false
   npm install -g /path/to/google-gemini-cli-0.1.17.tgz
   gemini --version
 
-  # 一个综合命令：npm install && npm run clean && npm run build && npm run bundle && npm pack && npm install -g ./google-gemini-cli-0.1.17.tgz && gemini --version
+  # 一个综合命令：npm uninstall -g @google/gemini-cli && npm install && npm run clean && npm run build && npm run bundle && npm pack && npm install -g ./google-gemini-cli-*.tgz && gemini --version
 ```
 
 ## 项目目标与需求
