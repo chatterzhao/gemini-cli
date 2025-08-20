@@ -98,7 +98,7 @@ This section guides contributors on how to build, modify, and understand the dev
 To clone the repository:
 
 ```bash
-git clone https://github.com/google-gemini/gemini-cli.git # Or your fork's URL
+git clone https://github.com/chatterzhao/gemini-cli.git # Or your fork's URL
 cd gemini-cli
 ```
 
