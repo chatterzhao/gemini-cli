@@ -315,8 +315,8 @@ export const SETTINGS_SCHEMA = {
     label: 'Disable Auto Update',
     category: 'Updates',
     requiresRestart: false,
-    default: false,
-    description: 'Disable automatic updates',
+    default: true,
+    description: 'Disable automatic updates (enabled by default)',
     showInDialog: true,
   },
 
