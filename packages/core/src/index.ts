@@ -109,3 +109,5 @@ export { decodeTagName } from './core/logger.js';
 export { FileSearchFactory } from './utils/filesearch/fileSearch.js';
 export { escapeShellArg, getShellConfiguration } from './utils/shell-utils.js';
 export { parseAndFormatApiError } from './utils/errorParsing.js';
+export { getResponseText } from './utils/generateContentResponseUtilities.js';
+export { DEFAULT_GEMINI_FLASH_LITE_MODEL } from './config/models.js';
