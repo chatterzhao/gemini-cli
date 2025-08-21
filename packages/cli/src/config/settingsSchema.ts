@@ -558,15 +558,6 @@ export const SETTINGS_SCHEMA = {
     description: 'Show line numbers in the chat.',
     showInDialog: true,
   },
-  skipNextSpeakerCheck: {
-    type: 'boolean',
-    label: 'Skip Next Speaker Check',
-    category: 'General',
-    requiresRestart: false,
-    default: false,
-    description: 'Skip the next speaker check.',
-    showInDialog: true,
-  },
   // Custom Provider Settings - managed through specialized UI flows
   currentProvider: {
     type: 'string',
@@ -594,6 +585,25 @@ export const SETTINGS_SCHEMA = {
     default: undefined as Record<string, CustomProviderConfig> | undefined,
     description: 'Custom provider configurations.',
     showInDialog: false, // Complex object managed through specialized UI
+  },
+  skipNextSpeakerCheck: {
+    type: 'boolean',
+    label: 'Skip Next Speaker Check',
+    category: 'General',
+    requiresRestart: false,
+    default: false,
+    description: 'Skip the next speaker check.',
+    showInDialog: true,
+  },
+  enablePromptCompletion: {
+    type: 'boolean',
+    label: 'Enable Prompt Completion',
+    category: 'General',
+    requiresRestart: true,
+    default: false,
+    description:
+      'Enable AI-powered prompt completion suggestions while typing.',
+    showInDialog: true,
   },
 } as const;
 
