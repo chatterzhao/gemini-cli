@@ -19,8 +19,6 @@ import { DefaultDark } from '../ui/themes/default.js';
 
 import { MemoryImportFormat, Settings, CustomProviderConfig } from './settingsSchema.js';
 
-import { isWorkspaceTrusted } from './trustedFolders.js';
-
 export type { MemoryImportFormat, Settings, CustomProviderConfig };
 
 export const SETTINGS_DIRECTORY_NAME = '.gemini';
