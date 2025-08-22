@@ -62,6 +62,7 @@ export interface SummarizeToolOutputSettings {
 
 export interface AccessibilitySettings {
   disableLoadingPhrases?: boolean;
+  screenReader?: boolean;
 }
 
 // CustomProviderConfig is now defined in settingsSchema.ts
